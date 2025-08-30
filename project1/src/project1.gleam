@@ -1,3 +1,4 @@
+import argv
 import gleam/io
 
 pub fn main() -> Nil {
