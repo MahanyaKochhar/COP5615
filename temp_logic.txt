@@ -3,3 +3,5 @@ Parent actor - triggering child actors and displaying final output
 Child of Parent: actor 1 - calculating squares and square roots
 
 Child of actor 1: actor 2 - addition of squares and checking till answer is a perfect sqaure
+
+EOF
