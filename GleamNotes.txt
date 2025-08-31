@@ -1,0 +1,22 @@
+Gleam is a programming language for the virtual machines.
+
+Subjects are used as PID in Gleam. Multiple subjects can have the same PID when defined in the same scope.
+Selectors can be used to bind datatypes to subjects. Whichever is called first will automatically be alloted to the respective subject.	
+
+In Gleam, an Actor is a core component for building message-based concurrent systems, providing a typed, Erlang OTP-compatible abstraction for processes that manage their own state and communicate via asynchronous messages. Actors are designed to be independent units of computation, similar to a state machine, allowing for fault-tolerant and scalable applications by encapsulating behavior, state, and communication channels within a well-defined, typed interface.
+
+Actor model - It is a conceptual model of concurrent computation. In the actor model, the actor is a fundamental unit of computation. 
+Only allowed operations for an actor are: CREATE ANOTHER ACTOR, SEND A MESSAGE, DESIGNATE HOW TO HANDLE THE NEXT MESSAGE.
+
+An actor can hold its own private state and it can decide how to process the next message based on that state. An actor changes its state based on messages. 
+
+Actors are isolated from eachother and they do not share memory. They have a state but the only way to change it is by receiving a message. 
+Every actor has its mailbox which is the same as a message queue (FIFO). 
+
+Messages are simple immutable data structures that are easy to send over the network. Actors can process only one message at a time. 
+Actors are decoupled; they work asynchronously and they don't need to wait for the response from another actor.
+
+Actors have addresses, so other actors can send messages to that address. Address is not equal to identity.
+They can run locally and remotely on another machine (completely transparent). 
+
+Supervisors can supervise child actors. Perform specific actions in case of any issue (self healing system). 
