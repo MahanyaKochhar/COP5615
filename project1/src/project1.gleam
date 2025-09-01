@@ -9,10 +9,10 @@ import working_actors
 pub fn main() -> Nil {
   let ans = case argv.load().arguments {
     [a, b] -> solve(a, b)
-    _ -> []
+    _ -> [-1]
   }
   case ans {
-    [] -> io.println("Invalid Inputs.")
+    [-1] -> io.println("Invalid Inputs")
     _ -> list.each(ans, fn(x) { io.println(int.to_string(x)) })
   }
 }
@@ -20,7 +20,10 @@ pub fn main() -> Nil {
 fn solve(astr: String, bstr: String) -> List(Int) {
   let n = int.base_parse(astr, 10) |> result.unwrap(-1)
   let k = int.base_parse(bstr, 10) |> result.unwrap(-1)
-  let result = find_solution(n, k)
+  let result = case n > -1 && k > -1 && n >= k {
+    True -> find_solution(n, k)
+    False -> []
+  }
   result
 }
 
