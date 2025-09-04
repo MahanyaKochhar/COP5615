@@ -1,6 +1,8 @@
-README
+**README**
 
-Project group 24 - Sum of squares
+Project group 24 - Sum of Consecutive squares
+
+==============================================================
 
 1. Work Unit Size
 
@@ -8,12 +10,15 @@ Work unit size chosen: <Mention the number of subproblems a worker gets in a sin
 
 This size was selected as too small a unit size would mean too much message passing overhead. Too large a unit size would mean poor load balancing across cores. The chosen unit size provided the best balance between computation and communication overhead.
 
+==============================================================
+
 2. The result of running this program for lukas 1000000 4 is 0.
 
 PS D:\UF\Sem1\DOSP\Gleam\Project_1\project1> gleam run 1000000 4
    Compiled in 0.11s
     Running project1.main
-PS D:\UF\Sem1\DOSP\Gleam\Project_1\project1> 
+
+==============================================================
 
 3. Measuring REAL time and the ratio of CPU vs REAL Time
 
@@ -53,6 +58,8 @@ Real time = 4
 Average cores used            = (2.37 + 1.63) / 26.68
 (CPU time to REAL time ratio) = 0.1499
                               ~ 15%
+
+==============================================================
 
 4. The largest problem we successfully managed to solve was lukas 1000000 4?
 
