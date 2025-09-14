@@ -30,14 +30,14 @@ pub fn main() -> Nil {
       let nodes = int.base_parse(n, 10) |> result.unwrap(-1)
       let validation = validate(nodes, topo, algorithm)
       let is_linear = list.contains(linear_topos, topo)
-      let n = case is_linear {
+      let side = case is_linear {
         True -> nodes
         False -> {
           side_length(nodes)
         }
       }
-      case validation && n > 0 {
-        True -> simulator.simulate(n, topo, algorithm, is_linear)
+      case validation && side > 0 {
+        True -> simulator.simulate(side, topo, algorithm, is_linear)
         False -> io.println("Inputs are bad.")
       }
     }
