@@ -7,15 +7,16 @@ import gleam/otp/actor
 import gleam/result
 import prng/random
 
+const rumour = "Top Secret"
+
 const rumour_cnt = 10
 
 pub type Coordinate {
   Coordinate(x: Int, y: Int, z: Int)
 }
 
-type Message(element) {
-  SendMessage(element)
-  Construct(List(#(Coordinate, process.Subject(Message(element)))))
+pub type Rumour {
+  Rumour(rumour: String, cnt: Int)
 }
 
 fn get_random_neighbour(
@@ -43,9 +44,9 @@ fn get_random_neighbour(
 fn filter_neighbours(
   possible_neighbours: List(Coordinate),
   side: Int,
-  subject: process.Subject(Message(e)),
-  actor_dict: dict.Dict(Coordinate, process.Subject(Message(e))),
-) -> List(#(Coordinate, process.Subject(Message(e)))) {
+  subject: process.Subject(Message),
+  actor_dict: dict.Dict(Coordinate, process.Subject(Message)),
+) -> List(#(Coordinate, process.Subject(Message))) {
   let filtered_list =
     list.filter_map(possible_neighbours, fn(possible_neighbour) {
       let is_valid = is_valid_neighbour(possible_neighbour, side)
@@ -97,18 +98,19 @@ fn possible_neighbours(
 }
 
 fn construct_neighbours(
-  actor_list: List(#(Coordinate, process.Subject(Message(e)))),
-  actor_dict: dict.Dict(Coordinate, process.Subject(Message(e))),
+  actor_list: List(#(Coordinate, process.Subject(Message))),
+  actor_dict: dict.Dict(Coordinate, process.Subject(Message)),
   topo: String,
   side: Int,
 ) {
-  let generator = random.int(0, side - 1)
   case topo {
     "full" -> {
       list.each(actor_list, fn(actor) {
-        let _coordinate = actor.0
+        let coordinate = actor.0
         let subject = actor.1
-        actor.send(subject, Construct(actor_list))
+        let filtered_list =
+          list.filter(actor_list, fn(member) { member.0 != coordinate })
+        actor.send(subject, Construct(filtered_list))
       })
     }
     "line" -> {
@@ -139,6 +141,7 @@ fn construct_neighbours(
       })
     }
     "imp3D" -> {
+      let generator = random.int(0, side - 1)
       list.each(actor_list, fn(actor) {
         let coordinate = actor.0
         let subject = actor.1
@@ -165,8 +168,7 @@ fn construct_neighbours(
 fn construct_actor_list(
   side: Int,
   is_linear: Bool,
-  rumour: element,
-) -> List(#(Coordinate, process.Subject(Message(element)))) {
+) -> List(#(Coordinate, process.Subject(Message))) {
   let x_max = side - 1
   let y_max = case is_linear {
     True -> 0
@@ -191,7 +193,7 @@ fn construct_actor_list(
 
           // build actor
           let assert Ok(actor) =
-            actor.new(#(coordinate, #(rumour, 0), []))
+            actor.new(#(coordinate, Rumour(rumour: "", cnt: 0), []))
             |> actor.on_message(handle_message)
             |> actor.start()
 
@@ -204,12 +206,11 @@ fn construct_actor_list(
 }
 
 fn get_index(
-  actor_list: List(#(Coordinate, process.Subject(Message(element)))),
+  actor_list: List(#(Coordinate, process.Subject(Message))),
   idx: Int,
-  rumour: element,
-) -> #(Coordinate, process.Subject(Message(element))) {
+) -> #(Coordinate, process.Subject(Message)) {
   let assert Ok(dummy_actor) =
-    actor.new(#(Coordinate(0, 0, 0), #(rumour, 0), []))
+    actor.new(#(Coordinate(0, 0, 0), Rumour(rumour: "", cnt: 0), []))
     |> actor.on_message(handle_message)
     |> actor.start()
 
@@ -226,48 +227,60 @@ fn get_index(
 pub fn simulate(
   side: Int,
   topo: String,
-  algorithm: String,
+  _algorithm: String,
   is_linear: Bool,
-  rumour: element,
 ) -> Nil {
-  let actor_list = construct_actor_list(side, is_linear, rumour)
+  let actor_list = construct_actor_list(side, is_linear)
   let actor_dict = dict.from_list(actor_list)
-
   construct_neighbours(actor_list, actor_dict, topo, side)
 
   let generator = random.int(0, list.length(actor_list) - 1)
   let random_idx = random.random_sample(generator)
-  let random_selection = get_index(actor_list, random_idx, rumour)
+  io.println("Random Index " <> int.to_string(random_idx))
+  let random_selection = get_index(actor_list, random_idx)
   actor.send(random_selection.1, SendMessage(rumour))
+  process.sleep(50_000)
   Nil
 }
 
+type Message {
+  SendMessage(String)
+  Construct(List(#(Coordinate, process.Subject(Message))))
+}
+
 fn handle_message(
-  state: #(
-    Coordinate,
-    #(e, Int),
-    List(#(Coordinate, process.Subject(Message(e)))),
-  ),
-  message: Message(e),
+  state: #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message)))),
+  message: Message,
 ) -> actor.Next(
-  #(Coordinate, #(e, Int), List(#(Coordinate, process.Subject(Message(e))))),
-  Message(element),
+  #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message)))),
+  Message,
 ) {
   case message {
     Construct(value) -> {
       let updated_state = #(state.0, state.1, value)
       actor.continue(updated_state)
     }
-    SendMessage(value) -> {
-      let existing_cnt = state.1.1
+    SendMessage(rumour) -> {
+      let existing_cnt = { state.1 }.cnt
+      io.println("Existing Cnt " <> int.to_string(existing_cnt))
       let new_cnt = existing_cnt + 1
+      io.println("New Cnt " <> int.to_string(new_cnt))
+      echo state.0
       case new_cnt >= rumour_cnt {
         True -> Nil
         False -> {
-          todo
+          let neighbours_list = state.2
+          let generator = random.int(0, list.length(neighbours_list) - 1)
+          let random_idx = random.random_sample(generator)
+          let random_selection = get_index(neighbours_list, random_idx)
+          actor.send(random_selection.1, SendMessage(rumour))
         }
       }
-      let updated_state = #(state.0, #(value, new_cnt), state.2)
+      let updated_state = #(
+        state.0,
+        Rumour(rumour: rumour, cnt: new_cnt),
+        state.2,
+      )
       actor.continue(updated_state)
     }
   }
