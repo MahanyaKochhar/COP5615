@@ -263,6 +263,7 @@ type Message {
   SendMessage(String)
   Construct(List(#(Coordinate, process.Subject(Message))))
   GetStatus(process.Subject(Result(Bool, Nil)))
+  SendPushSum(Float, Float)
 }
 
 fn handle_message(
@@ -306,6 +307,9 @@ fn handle_message(
         terminate,
       )
       actor.continue(updated_state)
+    }
+    SendPushSum(s, w) -> {
+      todo
     }
     GetStatus(client) -> {
       actor.send(client, Ok(state.3))
