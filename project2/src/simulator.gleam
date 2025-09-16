@@ -13,10 +13,6 @@ pub type Coordinate {
   Coordinate(x: Int, y: Int, z: Int)
 }
 
-pub type Config {
-  Config(topo: String, n: Int)
-}
-
 type Message(element) {
   SendMessage(element)
   Construct(List(#(Coordinate, process.Subject(Message(element)))))
