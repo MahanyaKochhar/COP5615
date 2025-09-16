@@ -9,6 +9,8 @@ import simulator
 
 const linear_topos = ["full", "line"]
 
+const rumour = "Hello"
+
 fn validate(n: Int, topo: String, algorithm: String) -> Bool {
   let valid_nodes = {
     n > 0
@@ -37,7 +39,7 @@ pub fn main() -> Nil {
         }
       }
       case validation && side > 0 {
-        True -> simulator.simulate(side, topo, algorithm, is_linear)
+        True -> simulator.simulate(side, topo, algorithm, is_linear, rumour)
         False -> io.println("Inputs are bad.")
       }
     }
