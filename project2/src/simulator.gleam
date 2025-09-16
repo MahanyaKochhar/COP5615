@@ -193,7 +193,7 @@ fn construct_actor_list(
 
           // build actor
           let assert Ok(actor) =
-            actor.new(#(coordinate, Rumour(rumour: "", cnt: 0), []))
+            actor.new(#(coordinate, Rumour(rumour: "", cnt: 0), [], False))
             |> actor.on_message(handle_message)
             |> actor.start()
 
@@ -210,7 +210,7 @@ fn get_index(
   idx: Int,
 ) -> #(Coordinate, process.Subject(Message)) {
   let assert Ok(dummy_actor) =
-    actor.new(#(Coordinate(0, 0, 0), Rumour(rumour: "", cnt: 0), []))
+    actor.new(#(Coordinate(0, 0, 0), Rumour(rumour: "", cnt: 0), [], False))
     |> actor.on_message(handle_message)
     |> actor.start()
 
@@ -222,6 +222,22 @@ fn get_index(
     list.first(valid_list)
     |> result.unwrap(#(-1, #(Coordinate(0, 0, 0), subject)))
   valid.1
+}
+
+fn validate_termination(
+  actor_list: List(#(Coordinate, process.Subject(Message))),
+  terminate: Bool,
+) {
+  case terminate {
+    True -> Nil
+    False -> {
+      let arr =
+        list.filter(actor_list, fn(actor) {
+          actor.call(actor.1, 100, GetStatus) |> result.unwrap(False)
+        })
+      validate_termination(actor_list, list.length(arr) > 0)
+    }
+  }
 }
 
 pub fn simulate(
@@ -239,25 +255,31 @@ pub fn simulate(
   io.println("Random Index " <> int.to_string(random_idx))
   let random_selection = get_index(actor_list, random_idx)
   actor.send(random_selection.1, SendMessage(rumour))
-  process.sleep(50_000)
+  validate_termination(actor_list, False)
   Nil
 }
 
 type Message {
   SendMessage(String)
   Construct(List(#(Coordinate, process.Subject(Message))))
+  GetStatus(process.Subject(Result(Bool, Nil)))
 }
 
 fn handle_message(
-  state: #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message)))),
+  state: #(
+    Coordinate,
+    Rumour,
+    List(#(Coordinate, process.Subject(Message))),
+    Bool,
+  ),
   message: Message,
 ) -> actor.Next(
-  #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message)))),
+  #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message))), Bool),
   Message,
 ) {
   case message {
     Construct(value) -> {
-      let updated_state = #(state.0, state.1, value)
+      let updated_state = #(state.0, state.1, value, state.3)
       actor.continue(updated_state)
     }
     SendMessage(rumour) -> {
@@ -266,7 +288,7 @@ fn handle_message(
       let new_cnt = existing_cnt + 1
       io.println("New Cnt " <> int.to_string(new_cnt))
       echo state.0
-      case new_cnt >= rumour_cnt {
+      case new_cnt > rumour_cnt {
         True -> Nil
         False -> {
           let neighbours_list = state.2
@@ -276,12 +298,18 @@ fn handle_message(
           actor.send(random_selection.1, SendMessage(rumour))
         }
       }
+      let terminate = new_cnt > rumour_cnt
       let updated_state = #(
         state.0,
         Rumour(rumour: rumour, cnt: new_cnt),
         state.2,
+        terminate,
       )
       actor.continue(updated_state)
+    }
+    GetStatus(client) -> {
+      actor.send(client, Ok(state.3))
+      actor.continue(state)
     }
   }
 }
