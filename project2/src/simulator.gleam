@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/erlang/process
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
@@ -9,6 +10,15 @@ import prng/random
 
 const rumour = "Top Secret"
 
+const near_list = [
+  #(1, 0, 0),
+  #(-1, 0, 0),
+  #(0, 1, 0),
+  #(0, -1, 0),
+  #(0, 0, 1),
+  #(0, 0, -1),
+]
+
 const rumour_cnt = 10
 
 pub type Coordinate {
@@ -17,6 +27,10 @@ pub type Coordinate {
 
 pub type Rumour {
   Rumour(rumour: String, cnt: Int)
+}
+
+pub type PushSum {
+  PushSum(s: Float, w: Float, ratio: Float, cnt: Int)
 }
 
 fn get_random_neighbour(
@@ -77,22 +91,17 @@ fn is_valid_neighbour(coordinate: Coordinate, side: Int) -> Bool {
 
 fn possible_neighbours(
   coordinate: Coordinate,
-  x1: List(Int),
-  y1: List(Int),
-  z1: List(Int),
+  near_list: List(#(Int, Int, Int)),
 ) -> List(Coordinate) {
   let possible_neighbours =
-    x1
-    |> list.flat_map(fn(x) {
-      y1
-      |> list.flat_map(fn(y) {
-        z1
-        |> list.map(fn(z) {
-          let new_coordinate =
-            Coordinate(coordinate.x + x, coordinate.y + y, coordinate.z + z)
-          new_coordinate
-        })
-      })
+    list.map(near_list, fn(element) {
+      let new_coordinate =
+        Coordinate(
+          coordinate.x + element.0,
+          coordinate.y + element.1,
+          coordinate.z + element.2,
+        )
+      new_coordinate
     })
   possible_neighbours
 }
@@ -131,10 +140,7 @@ fn construct_neighbours(
       list.each(actor_list, fn(actor) {
         let coordinate = actor.0
         let subject = actor.1
-        let x1 = [1, -1, 0, 0, 0, 0]
-        let y1 = [0, 0, 1, -1, 0, 0]
-        let z1 = [0, 0, 0, 0, 1, -1]
-        let possible_neighbours = possible_neighbours(coordinate, x1, y1, z1)
+        let possible_neighbours = possible_neighbours(coordinate, near_list)
         let filtered_list =
           filter_neighbours(possible_neighbours, side, subject, actor_dict)
         actor.send(subject, Construct(filtered_list))
@@ -145,10 +151,7 @@ fn construct_neighbours(
       list.each(actor_list, fn(actor) {
         let coordinate = actor.0
         let subject = actor.1
-        let x1 = [1, -1, 0, 0, 0, 0]
-        let y1 = [0, 0, 1, -1, 0, 0]
-        let z1 = [0, 0, 0, 0, 1, -1]
-        let possible_neighbours = possible_neighbours(coordinate, x1, y1, z1)
+        let possible_neighbours = possible_neighbours(coordinate, near_list)
         let filtered_list =
           filter_neighbours(possible_neighbours, side, subject, actor_dict)
         let random_neighbour =
@@ -190,10 +193,17 @@ fn construct_actor_list(
         z_range
         |> list.map(fn(z) {
           let coordinate = Coordinate(x, y, z)
-
+          let idx =
+            x + y * { y_max + 1 } + z * { { y_max + 1 } * { x_max + 1 } }
           // build actor
           let assert Ok(actor) =
-            actor.new(#(coordinate, Rumour(rumour: "", cnt: 0), [], False))
+            actor.new(#(
+              coordinate,
+              Rumour(rumour: "", cnt: 0),
+              PushSum(s: int.to_float(idx), w: 1.0, ratio: 0.0, cnt: 0),
+              [],
+              False,
+            ))
             |> actor.on_message(handle_message)
             |> actor.start()
 
@@ -210,7 +220,13 @@ fn get_index(
   idx: Int,
 ) -> #(Coordinate, process.Subject(Message)) {
   let assert Ok(dummy_actor) =
-    actor.new(#(Coordinate(0, 0, 0), Rumour(rumour: "", cnt: 0), [], False))
+    actor.new(#(
+      Coordinate(0, 0, 0),
+      Rumour(rumour: "", cnt: 0),
+      PushSum(s: 0.0, w: 1.0, ratio: 0.0, cnt: 0),
+      [],
+      False,
+    ))
     |> actor.on_message(handle_message)
     |> actor.start()
 
@@ -243,24 +259,44 @@ fn validate_termination(
 pub fn simulate(
   side: Int,
   topo: String,
-  _algorithm: String,
+  algorithm: String,
   is_linear: Bool,
 ) -> Nil {
   let actor_list = construct_actor_list(side, is_linear)
+  io.println("Length of Actor List " <> int.to_string(list.length(actor_list)))
+  io.println("Actor List")
+  echo actor_list
   let actor_dict = dict.from_list(actor_list)
   construct_neighbours(actor_list, actor_dict, topo, side)
+  let random_selection = get_random_neighbour_within_list(actor_list)
+  case algorithm {
+    "gossip" -> {
+      io.println("Gossip Algorithm")
+      actor.send(random_selection.1, SendRumour(rumour))
+    }
+    "push-sum" -> {
+      io.println("Push Sum Algorithm")
+      actor.send(random_selection.1, SendPushSum(0.0, 0.0))
+    }
+    _ -> Nil
+  }
+  validate_termination(actor_list, False)
+  // process.sleep(5000)
+  Nil
+}
 
+fn get_random_neighbour_within_list(
+  actor_list: List(#(Coordinate, process.Subject(Message))),
+) -> #(Coordinate, process.Subject(Message)) {
   let generator = random.int(0, list.length(actor_list) - 1)
   let random_idx = random.random_sample(generator)
   io.println("Random Index " <> int.to_string(random_idx))
   let random_selection = get_index(actor_list, random_idx)
-  actor.send(random_selection.1, SendMessage(rumour))
-  validate_termination(actor_list, False)
-  Nil
+  random_selection
 }
 
 type Message {
-  SendMessage(String)
+  SendRumour(String)
   Construct(List(#(Coordinate, process.Subject(Message))))
   GetStatus(process.Subject(Result(Bool, Nil)))
   SendPushSum(Float, Float)
@@ -270,33 +306,40 @@ fn handle_message(
   state: #(
     Coordinate,
     Rumour,
+    PushSum,
     List(#(Coordinate, process.Subject(Message))),
     Bool,
   ),
   message: Message,
 ) -> actor.Next(
-  #(Coordinate, Rumour, List(#(Coordinate, process.Subject(Message))), Bool),
+  #(
+    Coordinate,
+    Rumour,
+    PushSum,
+    List(#(Coordinate, process.Subject(Message))),
+    Bool,
+  ),
   Message,
 ) {
   case message {
     Construct(value) -> {
-      let updated_state = #(state.0, state.1, value, state.3)
+      io.println("Neighbours of Coordinate")
+      echo #(state.0, value)
+      let updated_state = #(state.0, state.1, state.2, value, state.4)
       actor.continue(updated_state)
     }
-    SendMessage(rumour) -> {
+    SendRumour(rumour) -> {
       let existing_cnt = { state.1 }.cnt
       io.println("Existing Cnt " <> int.to_string(existing_cnt))
       let new_cnt = existing_cnt + 1
       io.println("New Cnt " <> int.to_string(new_cnt))
-      echo state.0
       case new_cnt > rumour_cnt {
         True -> Nil
         False -> {
-          let neighbours_list = state.2
-          let generator = random.int(0, list.length(neighbours_list) - 1)
-          let random_idx = random.random_sample(generator)
-          let random_selection = get_index(neighbours_list, random_idx)
-          actor.send(random_selection.1, SendMessage(rumour))
+          let neighbours_list = state.3
+          let random_selection =
+            get_random_neighbour_within_list(neighbours_list)
+          actor.send(random_selection.1, SendRumour(rumour))
         }
       }
       let terminate = new_cnt > rumour_cnt
@@ -304,15 +347,49 @@ fn handle_message(
         state.0,
         Rumour(rumour: rumour, cnt: new_cnt),
         state.2,
+        state.3,
         terminate,
       )
       actor.continue(updated_state)
     }
     SendPushSum(s, w) -> {
-      todo
+      let original = state.2
+      let s1 = original.s
+      let w1 = original.w
+      let previous_ratio = original.ratio
+      let previous_cnt = original.cnt
+      let s2 = s1 +. s
+      let w2 = w1 +. w
+      let new_ratio = s2 /. w2
+      let power = float.power(10.0, -10.0) |> result.unwrap(0.0)
+      let diff = float.absolute_value(new_ratio -. previous_ratio)
+      let new_s = s2 /. 2.0
+      let new_w = s2 /. 2.0
+      let terminate = case diff <. power && { previous_cnt + 1 } == 3 {
+        True -> True
+        False -> {
+          let neighbours_list = state.3
+          let random_selection =
+            get_random_neighbour_within_list(neighbours_list)
+          actor.send(random_selection.1, SendPushSum(new_s, new_w))
+          False
+        }
+      }
+      let cnt = case diff <. power {
+        True -> previous_cnt + 1
+        False -> 0
+      }
+      let updated_state = #(
+        state.0,
+        state.1,
+        PushSum(s: new_s, w: new_w, ratio: new_ratio, cnt: cnt),
+        state.3,
+        terminate,
+      )
+      actor.continue(updated_state)
     }
     GetStatus(client) -> {
-      actor.send(client, Ok(state.3))
+      actor.send(client, Ok(state.4))
       actor.continue(state)
     }
   }
