@@ -6,9 +6,13 @@ import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/result
+import gleam/time/duration
+import gleam/time/timestamp
 import prng/random
 
 const rumour = "Top Secret"
+
+const call_time = 50_000
 
 const near_list = [
   #(1, 0, 0),
@@ -194,13 +198,20 @@ fn construct_actor_list(
         |> list.map(fn(z) {
           let coordinate = Coordinate(x, y, z)
           let idx =
-            x + y * { y_max + 1 } + z * { { y_max + 1 } * { x_max + 1 } }
+            x + y * { y_max + 1 } + z * { { y_max + 1 } * { x_max + 1 } } + 1
+          // io.println("Coordinate and Index")
+          // echo #(coordinate, idx)
           // build actor
           let assert Ok(actor) =
             actor.new(#(
               coordinate,
               Rumour(rumour: "", cnt: 0),
-              PushSum(s: int.to_float(idx), w: 1.0, ratio: 0.0, cnt: 0),
+              PushSum(
+                s: int.to_float(idx),
+                w: 1.0,
+                ratio: int.to_float(idx),
+                cnt: 0,
+              ),
               [],
               False,
             ))
@@ -243,15 +254,23 @@ fn get_index(
 fn validate_termination(
   actor_list: List(#(Coordinate, process.Subject(Message))),
   terminate: Bool,
+  time_start: timestamp.Timestamp,
 ) {
   case terminate {
-    True -> Nil
+    True -> {
+      let time_end = timestamp.system_time()
+      let diff =
+        timestamp.difference(time_start, time_end) |> duration.to_seconds()
+      io.println("Time elapsed")
+      echo diff
+      Nil
+    }
     False -> {
       let arr =
         list.filter(actor_list, fn(actor) {
-          actor.call(actor.1, 100, GetStatus) |> result.unwrap(False)
+          actor.call(actor.1, call_time, GetStatus) |> result.unwrap(False)
         })
-      validate_termination(actor_list, list.length(arr) > 0)
+      validate_termination(actor_list, list.length(arr) > 0, time_start)
     }
   }
 }
@@ -263,12 +282,13 @@ pub fn simulate(
   is_linear: Bool,
 ) -> Nil {
   let actor_list = construct_actor_list(side, is_linear)
-  io.println("Length of Actor List " <> int.to_string(list.length(actor_list)))
-  io.println("Actor List")
-  echo actor_list
+  // io.println("Length of Actor List " <> int.to_string(list.length(actor_list)))
+  // io.println("Actor List")
+  // echo actor_list
   let actor_dict = dict.from_list(actor_list)
   construct_neighbours(actor_list, actor_dict, topo, side)
   let random_selection = get_random_neighbour_within_list(actor_list)
+  let time_start = timestamp.system_time()
   case algorithm {
     "gossip" -> {
       io.println("Gossip Algorithm")
@@ -280,8 +300,7 @@ pub fn simulate(
     }
     _ -> Nil
   }
-  validate_termination(actor_list, False)
-  // process.sleep(5000)
+  validate_termination(actor_list, False, time_start)
   Nil
 }
 
@@ -290,7 +309,7 @@ fn get_random_neighbour_within_list(
 ) -> #(Coordinate, process.Subject(Message)) {
   let generator = random.int(0, list.length(actor_list) - 1)
   let random_idx = random.random_sample(generator)
-  io.println("Random Index " <> int.to_string(random_idx))
+  // io.println("Random Index " <> int.to_string(random_idx))
   let random_selection = get_index(actor_list, random_idx)
   random_selection
 }
@@ -323,16 +342,16 @@ fn handle_message(
 ) {
   case message {
     Construct(value) -> {
-      io.println("Neighbours of Coordinate")
-      echo #(state.0, value)
+      // io.println("Neighbours of Coordinate")
+      // echo #(state.0, value)
       let updated_state = #(state.0, state.1, state.2, value, state.4)
       actor.continue(updated_state)
     }
     SendRumour(rumour) -> {
       let existing_cnt = { state.1 }.cnt
-      io.println("Existing Cnt " <> int.to_string(existing_cnt))
+      // io.println("Existing Cnt " <> int.to_string(existing_cnt))
       let new_cnt = existing_cnt + 1
-      io.println("New Cnt " <> int.to_string(new_cnt))
+      // io.println("New Cnt " <> int.to_string(new_cnt))
       case new_cnt > rumour_cnt {
         True -> Nil
         False -> {
@@ -364,9 +383,15 @@ fn handle_message(
       let power = float.power(10.0, -10.0) |> result.unwrap(0.0)
       let diff = float.absolute_value(new_ratio -. previous_ratio)
       let new_s = s2 /. 2.0
-      let new_w = s2 /. 2.0
+      let new_w = w2 /. 2.0
+      // io.println("Coordinate,s2,w2,New Ratio, Previous Ratio")
+      // echo #(state.0, s2, w2, new_ratio, previous_ratio)
+      // io.println("Intermediate S/W Ratio " <> float.to_string(new_ratio))
       let terminate = case diff <. power && { previous_cnt + 1 } == 3 {
-        True -> True
+        True -> {
+          io.println("S/W Ratio " <> float.to_string(new_ratio))
+          True
+        }
         False -> {
           let neighbours_list = state.3
           let random_selection =
