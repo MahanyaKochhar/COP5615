@@ -249,8 +249,7 @@ fn validate_termination(
       let time_end = timestamp.system_time()
       let diff =
         timestamp.difference(time_start, time_end) |> duration.to_seconds()
-      io.println("Time elapsed")
-      echo diff
+      io.println("Time elapsed " <> float.to_string(diff) <> " s")
       Nil
     }
     False -> {
