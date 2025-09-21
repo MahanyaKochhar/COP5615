@@ -230,24 +230,12 @@ fn get_index(
   actor_list: List(#(Coordinate, process.Subject(Message))),
   idx: Int,
 ) -> #(Coordinate, process.Subject(Message)) {
-  let assert Ok(dummy_actor) =
-    actor.new(#(
-      Coordinate(0, 0, 0),
-      Rumour(rumour: "", cnt: 0),
-      PushSum(s: 0.0, w: 1.0, ratio: 0.0, cnt: 0),
-      [],
-      False,
-    ))
-    |> actor.on_message(handle_message)
-    |> actor.start()
-
-  let subject = dummy_actor.data
   let valid_list =
     list.index_map(actor_list, fn(x, i) { #(i, x) })
     |> list.filter(fn(x) { x.0 == idx })
   let valid =
     list.first(valid_list)
-    |> result.unwrap(#(-1, #(Coordinate(0, 0, 0), subject)))
+    |> result.unwrap(#(-1, #(Coordinate(0, 0, 0), process.new_subject())))
   valid.1
 }
 
