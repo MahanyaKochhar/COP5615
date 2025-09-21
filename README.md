@@ -16,6 +16,7 @@ The simulator allows users to define network sizes, choose different topologies 
 
 ### Largest network sizes for each topology and algorithm:
 
+Here are the results obtained for the largest network size for each topology and algorithm.
 - Push-sum algorithm:
     - Full Network: 1200
     - 3D Grid: 1400
