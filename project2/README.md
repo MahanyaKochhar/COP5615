@@ -27,3 +27,11 @@ The simulator allows users to define network sizes, choose different topologies 
     - 3D Grid: 1500
     - Line: 1600
     - Imperfect 3D Grid: 1800
+
+### Development 
+
+  Either
+```
+   gleam run N T A
+```
+  where N = No of Nodes, T = Topology,A = Algorithm are command line inputs as in problem statement
