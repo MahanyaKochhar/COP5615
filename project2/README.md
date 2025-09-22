@@ -1,24 +1,29 @@
-# project2
+# COP5615 Distributed Operating Systems Principles
+## Project 2 - Gossip Protocol
+### Project group: 24
+### Team members: Mahanya Kochhar, Akshay Dhawale
 
-[![Package Version](https://img.shields.io/hexpm/v/project2)](https://hex.pm/packages/project2)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/project2/)
+This project is designed to model and evaluate the behavior of the Gossip and Push-Sum algorithms over various network topologies. It aims to explore the convergence time for these algorithms over full network, 3D grid, line and imperfect 3D grid network topologies across actor-based configurations.
 
-```sh
-gleam add project2@1
-```
-```gleam
-import project2
+The simulator allows users to define network sizes, choose different topologies and algorithms, and observe how information propagates across the system.
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+### What is working:
 
-Further documentation can be found at <https://hexdocs.pm/project2>.
+- Program successfully constructs network topologies with correctly initialized neighbors for each actor.
+- Simulator executes as expected for both Gossip and Push-Sum protocols.
+- Supports testing with varying network sizes and topologies, with precise time tracking.
+- Both algorithms reliably converge based on predefined convergence criteria.
 
-## Development
+### Largest network sizes for each topology and algorithm:
 
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+- Push-sum algorithm:
+    - Full Network: 1200
+    - 3D Grid: 1400
+    - Line: 1000
+    - Imperfect 3D Grid: 1300
+
+- Gossip algorithm:
+    - Full Network: 1300
+    - 3D Grid: 1500
+    - Line: 1600
+    - Imperfect 3D Grid: 1800
