@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/crypto
 import gleam/dict
 import gleam/int
 import gleam/io
@@ -27,6 +29,10 @@ import prng/random
 
 fn generate_simple_ip(node: Int) -> String {
   "ip-address" <> "." <> int.to_string(node)
+}
+
+fn generate_identifier(str: String) {
+  let digest = crypto.hash(crypto.Sha1, bit_array.from_string(str))
 }
 
 pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
