@@ -72,14 +72,20 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
   |> list.map(fn(node) {
     let ip = generate_simple_ip(node)
     let bitarray = generate_identifier(ip)
-    echo bitarray
+    let assert Ok(actor) =
+      actor.new(#(id, None, None))
+      |> actor.on_message(handle_message)
+      |> actor.start
+    let subject = actor.data
+    actor.send(subject, Join(network_subject))
   })
   Nil
 }
 
 type Message {
   Create(process.Subject(Message))
-  FindSuccessor(BitArray)
+  FindSuccessor(id: BitArray, reply_to: process.Subject(Successor))
+  Join(process.Subject(Message))
 }
 
 fn handle_message(
@@ -93,17 +99,27 @@ fn handle_message(
       let successor = Successor(id: id, subject: subject)
       actor.continue(#(id, predecessor, Some(successor)))
     }
-    FindSuccessor(id) -> {
+    FindSuccessor(id, client) -> {
       let node_id = state.0
       let assert Some(succ) = state.2
       let successor_id = succ.id
       let successor_subject = succ.subject
       let is_present =
-        is_greater_than(id, node_id) && is_less_or_equal(node_id, successor_id)
+        is_greater_than(<<"h">>, node_id)
+        && is_less_or_equal(node_id, successor_id)
       case is_present {
-        True -> Nil
-        False -> actor.send(successor_subject, FindSuccessor(id))
+        True -> process.send(client, succ)
+        False -> {
+          let res =
+            process.call(successor_subject, 10, FindSuccessor(state.0, _))
+          process.send(client, res)
+        }
       }
+      actor.continue(state)
+    }
+    Join(subject) -> {
+      let predecessor = Nil
+      process.call(subject, 10, FindSuccessor(state.0, _))
       actor.continue(state)
     }
   }
