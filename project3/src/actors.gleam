@@ -1,14 +1,12 @@
 import gleam/bit_array
 import gleam/crypto
-import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order
+import gleam/order.{Eq, Gt, Lt}
 import gleam/otp/actor
-import prng/random
 
 // fn generate_ip_address(dictionary) -> String {
 //   let generator = random.int(0, 255)
@@ -28,6 +26,8 @@ import prng/random
 //   }
 // }
 
+const call_milliseconds = 50_000
+
 type Successor {
   Successor(id: BitArray, subject: process.Subject(Message))
 }
@@ -36,12 +36,16 @@ type Predecessor {
   Predecessor(id: BitArray, subject: process.Subject(Message))
 }
 
-pub fn is_greater_than(a: BitArray, b: BitArray) -> Bool {
-  bit_array.compare(a, b) == order.Gt
-}
-
-pub fn is_less_or_equal(a: BitArray, b: BitArray) -> Bool {
-  bit_array.compare(a, b) != order.Gt
+pub fn is_between_circular(id: BitArray, start: BitArray, end: BitArray) -> Bool {
+  case bit_array.compare(start, end) {
+    Lt -> {
+      bit_array.compare(id, start) == Gt && bit_array.compare(id, end) != Gt
+    }
+    Gt -> {
+      bit_array.compare(id, start) == Gt || bit_array.compare(id, end) != Gt
+    }
+    Eq -> True
+  }
 }
 
 fn generate_simple_ip(node: Int) -> String {
@@ -66,26 +70,31 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
   io.println("Start simulation.")
   let ip = generate_simple_ip(0)
   let id = generate_identifier(ip)
-  let network_subject = initialize_network(id)
+  io.println("First ID is: ")
+  echo id
+  let root_subject = initialize_network(id)
 
   list.range(1, nodes - 1)
   |> list.map(fn(node) {
     let ip = generate_simple_ip(node)
     let bitarray = generate_identifier(ip)
     let assert Ok(actor) =
-      actor.new(#(id, None, None))
+      actor.new(#(bitarray, None, None))
       |> actor.on_message(handle_message)
       |> actor.start
     let subject = actor.data
-    actor.send(subject, Join(network_subject))
+    actor.send(subject, Join(root_subject, subject))
+    process.sleep(5000)
   })
+  process.sleep(5000)
   Nil
 }
 
 type Message {
   Create(process.Subject(Message))
   FindSuccessor(id: BitArray, reply_to: process.Subject(Successor))
-  Join(process.Subject(Message))
+  Join(process.Subject(Message), process.Subject(Message))
+  Notify(BitArray, process.Subject(Message))
 }
 
 fn handle_message(
@@ -97,6 +106,7 @@ fn handle_message(
       let id = state.0
       let predecessor = None
       let successor = Successor(id: id, subject: subject)
+      io.println("Created network.")
       actor.continue(#(id, predecessor, Some(successor)))
     }
     FindSuccessor(id, client) -> {
@@ -104,23 +114,55 @@ fn handle_message(
       let assert Some(succ) = state.2
       let successor_id = succ.id
       let successor_subject = succ.subject
-      let is_present =
-        is_greater_than(<<"h">>, node_id)
-        && is_less_or_equal(node_id, successor_id)
+      let is_present = is_between_circular(id, node_id, successor_id)
       case is_present {
-        True -> process.send(client, succ)
+        True -> {
+          io.println("Found successor.")
+          echo succ
+          process.send(client, succ)
+        }
         False -> {
           let res =
-            process.call(successor_subject, 10, FindSuccessor(state.0, _))
+            process.call(successor_subject, call_milliseconds, FindSuccessor(
+              state.0,
+              _,
+            ))
           process.send(client, res)
         }
       }
       actor.continue(state)
     }
-    Join(subject) -> {
-      let predecessor = Nil
-      process.call(subject, 10, FindSuccessor(state.0, _))
-      actor.continue(state)
+    Notify(possible_id, possible_subject) -> {
+      // echo possible_id
+      // echo possible_subject
+      let node_id = state.0
+      let predecessor_present = option.is_some(state.1)
+      let updated_predecessor = case predecessor_present {
+        True -> {
+          let assert Some(pred) = state.1
+          let is_present = is_between_circular(possible_id, pred.id, node_id)
+          case is_present {
+            True -> Some(Predecessor(possible_id, possible_subject))
+            False -> Some(pred)
+          }
+        }
+        False -> Some(Predecessor(possible_id, possible_subject))
+      }
+      io.println("Updated Predecessor")
+      echo updated_predecessor
+      actor.continue(#(state.0, updated_predecessor, state.2))
+    }
+    Join(network_subject, my_subject) -> {
+      io.println("Initiated Join now")
+      let successor =
+        process.call(network_subject, call_milliseconds, FindSuccessor(
+          state.0,
+          _,
+        ))
+      io.println("My Successor.")
+      echo successor
+      actor.send(successor.subject, Notify(state.0, my_subject))
+      actor.continue(#(state.0, None, Some(successor)))
     }
   }
 }
