@@ -38,6 +38,53 @@ type Config {
   Config(counter: Int, max: Int)
 }
 
+pub fn add_power_of_2(id: BitArray, power: Int, m: Int) -> BitArray {
+  let num_bytes = m / 8
+  let offset = int.bitwise_shift_left(1, power)
+
+  // Extract all bytes
+  extract_and_add(id, 0, num_bytes, offset, [])
+}
+
+fn extract_and_add(
+  id: BitArray,
+  index: Int,
+  total: Int,
+  carry: Int,
+  acc: List(Int),
+) -> BitArray {
+  case index >= total {
+    True -> {
+      // Convert accumulated list back to BitArray
+      build_byte_array(acc, <<>>)
+    }
+    False -> {
+      let pos = total - 1 - index
+      // Read from right to left
+      let byte = read_byte_at(id, pos)
+      let sum = byte + carry
+
+      extract_and_add(id, index + 1, total, sum / 256, [sum % 256, ..acc])
+    }
+  }
+}
+
+fn read_byte_at(bits: BitArray, index: Int) -> Int {
+  case bit_array.slice(bits, index, 1) {
+    Ok(<<b:int-size(8)>>) -> b
+    // Specify 8 bits (1 byte)
+    _ -> 0
+  }
+}
+
+fn build_byte_array(bytes: List(Int), acc: BitArray) -> BitArray {
+  case bytes {
+    [] -> acc
+    [b, ..rest] -> build_byte_array(rest, <<acc:bits, b:int-size(8)>>)
+    // Specify size
+  }
+}
+
 pub fn is_between_exclusive_inclusive(
   id: BitArray,
   start: BitArray,
