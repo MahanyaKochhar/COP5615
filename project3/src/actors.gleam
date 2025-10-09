@@ -104,8 +104,20 @@ fn background_process(background_key: BackgroundKey) {
   background_process(background_key)
 }
 
-fn node_workflow(background_key: BackgroundKey) {
+fn request_loop(background_key: BackgroundKey, requests: Int) {
+  case requests > 0 {
+    True ->
+      process.call(background_key.subject, call_milliseconds, FindSuccessor(
+        <<"">>,
+        _,
+      ))
+    False -> request_loop(background_key, requests - 1)
+  }
+}
+
+fn node_workflow(background_key: BackgroundKey, requests: Int) {
   process.spawn(fn() { background_process(background_key) })
+  request_loop(background_key, requests)
 }
 
 fn generate_waiting_period() -> Int {
@@ -206,7 +218,7 @@ fn generate_base_finger_list(m: Int) -> List(Option(Node)) {
   |> list.map(fn(_idx) { None })
 }
 
-fn initialize_network(id: BitArray, m: Int) -> BackgroundKey {
+fn initialize_network(id: BitArray, m: Int, requests: Int) -> BackgroundKey {
   let finger_list = generate_base_finger_list(m)
   let assert Ok(actor) =
     actor.new(#(id, None, None, finger_list, Config(0, m)))
@@ -217,10 +229,7 @@ fn initialize_network(id: BitArray, m: Int) -> BackgroundKey {
   let stabilization_period = generate_waiting_period()
   let background_key =
     BackgroundKey(subject: subject, stabilization_period: stabilization_period)
-  process.spawn(fn() {
-    node_workflow(background_key)
-    background_process(background_key)
-  })
+  process.spawn(fn() { node_workflow(background_key, requests) })
   background_key
 }
 
@@ -234,7 +243,7 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
   let m = float.round(m) + 1
-  let root_background_key = initialize_network(id, m)
+  let root_background_key = initialize_network(id, m, requests)
   let actor_subject_list =
     list.range(1, nodes - 1)
     |> list.map(fn(node) {
@@ -255,7 +264,7 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
           subject: subject,
           stabilization_period: stabilization_period,
         )
-      process.spawn(fn() { background_process(background_key) })
+      process.spawn(fn() { node_workflow(background_key, requests) })
       background_key
     })
   process.sleep(5000)
