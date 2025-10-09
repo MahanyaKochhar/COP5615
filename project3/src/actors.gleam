@@ -9,24 +9,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/otp/actor
 import gleam/result
-
-// fn generate_ip_address(dictionary) -> String {
-//   let generator = random.int(0, 255)
-//   let octet1 = random.random_sample(generator)
-//   let octet2 = random.random_sample(generator)
-//   let octet3 = random.random_sample(generator)
-//   let octet4 = random.random_sample(generator)
-//   let ip =
-//     int.to_string(octet1)
-//     <> "."
-//     <> int.to_string(octet3)
-//     <> "."
-//     <> int.to_string(octet4)
-//   case dict.has_key(dictionary, ip) {
-//     True -> ip
-//     False -> generate_ip_address(dictionary)
-//   }
-// }
+import gleam/time/timestamp
+import prng/random
 
 const call_milliseconds = 50_000
 
@@ -34,15 +18,100 @@ type Node {
   Node(id: BitArray, subject: process.Subject(Message))
 }
 
+type BackgroundKey {
+  BackgroundKey(
+    subject: process.Subject(Message),
+    stabilization_period: Float,
+    finger_fix_period: Float,
+    last_executed_stabilization_unix: Float,
+    last_executed_finger_fix_unix: Float,
+  )
+}
+
 type Config {
   Config(counter: Int, max: Int)
+}
+
+fn background_process(background_key_list: List(BackgroundKey), terminate: Bool) {
+  case terminate {
+    True -> True
+    False -> {
+      let updated_background_key_list =
+        list.map(background_key_list, fn(background_key) {
+          let subject = background_key.subject
+
+          let last_executed_stabilization_unix =
+            background_key.last_executed_stabilization_unix
+          let last_executed_finger_fix_unix =
+            background_key.last_executed_finger_fix_unix
+
+          let current_unix =
+            timestamp.system_time() |> timestamp.to_unix_seconds()
+
+          let updated_stabilization_unix = case
+            current_unix
+            >. last_executed_stabilization_unix
+            +. background_key.stabilization_period
+          {
+            True -> {
+              actor.send(subject, Stabilize(subject))
+              current_unix
+            }
+            False -> last_executed_stabilization_unix
+          }
+
+          let updated_finger_fix_unix = case
+            current_unix
+            >. last_executed_finger_fix_unix +. background_key.finger_fix_period
+          {
+            True -> {
+              actor.send(subject, FixFingers(subject))
+              current_unix
+            }
+            False -> last_executed_finger_fix_unix
+          }
+
+          let stabilization_period = case
+            updated_stabilization_unix == last_executed_stabilization_unix
+          {
+            True -> background_key.stabilization_period
+            False -> {
+              generate_waiting_period()
+            }
+          }
+
+          let finger_fix_period = case
+            updated_finger_fix_unix == last_executed_finger_fix_unix
+          {
+            True -> background_key.finger_fix_period
+            False -> {
+              generate_waiting_period()
+            }
+          }
+
+          BackgroundKey(
+            subject: subject,
+            stabilization_period: stabilization_period,
+            finger_fix_period: finger_fix_period,
+            last_executed_stabilization_unix: updated_stabilization_unix,
+            last_executed_finger_fix_unix: updated_finger_fix_unix,
+          )
+        })
+      background_process(updated_background_key_list, False)
+    }
+  }
+}
+
+fn generate_waiting_period() -> Float {
+  let generator = random.int(0, 30)
+  let period = random.random_sample(generator)
+  int.to_float(period)
 }
 
 pub fn add_power_of_2(id: BitArray, power: Int, m: Int) -> BitArray {
   let num_bytes = m / 8
   let offset = int.bitwise_shift_left(1, power)
 
-  // Extract all bytes
   extract_and_add(id, 0, num_bytes, offset, [])
 }
 
@@ -118,18 +187,6 @@ pub fn is_between_exclusive_exclusive(
   }
 }
 
-pub fn is_between_circular(id: BitArray, start: BitArray, end: BitArray) -> Bool {
-  case bit_array.compare(start, end) {
-    Lt -> {
-      bit_array.compare(id, start) == Gt && bit_array.compare(id, end) != Gt
-    }
-    Gt -> {
-      bit_array.compare(id, start) == Gt || bit_array.compare(id, end) != Gt
-    }
-    Eq -> True
-  }
-}
-
 fn generate_simple_ip(node: Int) -> String {
   "ip-address" <> "." <> int.to_string(node)
 }
@@ -143,7 +200,7 @@ fn generate_base_finger_list(m: Int) -> List(Option(Node)) {
   |> list.map(fn(_idx) { None })
 }
 
-fn initialize_network(id: BitArray, m: Int) -> process.Subject(Message) {
+fn initialize_network(id: BitArray, m: Int) -> BackgroundKey {
   let finger_list = generate_base_finger_list(m)
   let assert Ok(actor) =
     actor.new(#(id, None, None, finger_list, Config(0, m)))
@@ -151,7 +208,17 @@ fn initialize_network(id: BitArray, m: Int) -> process.Subject(Message) {
     |> actor.start
   let subject = actor.data
   actor.send(subject, Create(subject))
-  subject
+  let stabilization_period = generate_waiting_period()
+  let finger_fix_period = generate_waiting_period()
+  BackgroundKey(
+    subject: subject,
+    stabilization_period: stabilization_period,
+    finger_fix_period: finger_fix_period,
+    last_executed_stabilization_unix: timestamp.system_time()
+      |> timestamp.to_unix_seconds(),
+    last_executed_finger_fix_unix: timestamp.system_time()
+      |> timestamp.to_unix_seconds(),
+  )
 }
 
 pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
@@ -164,20 +231,36 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
   let m = float.round(m) + 1
-  let root_subject = initialize_network(id, m)
-  list.range(1, nodes - 1)
-  |> list.map(fn(node) {
-    let ip = generate_simple_ip(node)
-    let bitarray = generate_identifier(ip)
-    let finger_list = generate_base_finger_list(m)
-    let assert Ok(actor) =
-      actor.new(#(bitarray, None, None, finger_list, Config(0, m)))
-      |> actor.on_message(handle_message)
-      |> actor.start
-    let subject = actor.data
-    actor.send(subject, Join(root_subject, subject))
-    process.sleep(5000)
-  })
+  let root_background_key = initialize_network(id, m)
+  let actor_subject_list =
+    list.range(1, nodes - 1)
+    |> list.map(fn(node) {
+      let ip = generate_simple_ip(node)
+      let bitarray = generate_identifier(ip)
+      let finger_list = generate_base_finger_list(m)
+      let assert Ok(actor) =
+        actor.new(#(bitarray, None, None, finger_list, Config(0, m)))
+        |> actor.on_message(handle_message)
+        |> actor.start
+      let subject = actor.data
+      actor.send(subject, Join(root_background_key.subject, subject))
+      process.sleep(5000)
+      let stabilization_period = generate_waiting_period()
+      let finger_fix_period = generate_waiting_period()
+      BackgroundKey(
+        subject: subject,
+        stabilization_period: stabilization_period,
+        finger_fix_period: finger_fix_period,
+        last_executed_stabilization_unix: timestamp.system_time()
+          |> timestamp.to_unix_seconds(),
+        last_executed_finger_fix_unix: timestamp.system_time()
+          |> timestamp.to_unix_seconds(),
+      )
+    })
+  let background_key_list =
+    list.append([root_background_key], actor_subject_list)
+
+  background_process(background_key_list, False)
   process.sleep(5000)
   Nil
 }
@@ -328,7 +411,7 @@ fn handle_message(
             True -> {
               let successor =
                 process.call(my_subject, call_milliseconds, FindSuccessor(
-                  state.0,
+                  add_power_of_2(state.0, i, 160),
                   _,
                 ))
               Some(successor)
