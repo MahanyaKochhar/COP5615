@@ -9,7 +9,6 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/otp/actor
 import gleam/result
-import gleam/time/timestamp
 import prng/random
 
 const call_milliseconds = 50_000
@@ -19,93 +18,100 @@ type Node {
 }
 
 type BackgroundKey {
-  BackgroundKey(
-    subject: process.Subject(Message),
-    stabilization_period: Float,
-    finger_fix_period: Float,
-    last_executed_stabilization_unix: Float,
-    last_executed_finger_fix_unix: Float,
-  )
+  BackgroundKey(subject: process.Subject(Message), stabilization_period: Int)
 }
 
 type Config {
   Config(counter: Int, max: Int)
 }
 
-fn background_process(background_key_list: List(BackgroundKey), terminate: Bool) {
-  case terminate {
-    True -> True
-    False -> {
-      let updated_background_key_list =
-        list.map(background_key_list, fn(background_key) {
-          let subject = background_key.subject
+// fn background_process(background_key_list: List(BackgroundKey), terminate: Bool) {
+//   case terminate {
+//     True -> True
+//     False -> {
+//       let updated_background_key_list =
+//         list.map(background_key_list, fn(background_key) {
+//           let subject = background_key.subject
 
-          let last_executed_stabilization_unix =
-            background_key.last_executed_stabilization_unix
-          let last_executed_finger_fix_unix =
-            background_key.last_executed_finger_fix_unix
+//           let last_executed_stabilization_unix =
+//             background_key.last_executed_stabilization_unix
+//           let last_executed_finger_fix_unix =
+//             background_key.last_executed_finger_fix_unix
 
-          let current_unix =
-            timestamp.system_time() |> timestamp.to_unix_seconds()
+//           let current_unix =
+//             timestamp.system_time() |> timestamp.to_unix_seconds()
 
-          let updated_stabilization_unix = case
-            current_unix
-            >. last_executed_stabilization_unix
-            +. background_key.stabilization_period
-          {
-            True -> {
-              actor.send(subject, Stabilize(subject))
-              current_unix
-            }
-            False -> last_executed_stabilization_unix
-          }
+//           let updated_stabilization_unix = case
+//             current_unix
+//             >. last_executed_stabilization_unix
+//             + background_key.stabilization_period
+//           {
+//             True -> {
+//               actor.send(subject, Stabilize(subject))
+//               current_unix
+//             }
+//             False -> last_executed_stabilization_unix
+//           }
 
-          let updated_finger_fix_unix = case
-            current_unix
-            >. last_executed_finger_fix_unix +. background_key.finger_fix_period
-          {
-            True -> {
-              actor.send(subject, FixFingers(subject))
-              current_unix
-            }
-            False -> last_executed_finger_fix_unix
-          }
+//           let updated_finger_fix_unix = case
+//             current_unix
+//             >. last_executed_finger_fix_unix + background_key.finger_fix_period
+//           {
+//             True -> {
+//               actor.send(subject, FixFingers(subject))
+//               current_unix
+//             }
+//             False -> last_executed_finger_fix_unix
+//           }
 
-          let stabilization_period = case
-            updated_stabilization_unix == last_executed_stabilization_unix
-          {
-            True -> background_key.stabilization_period
-            False -> {
-              generate_waiting_period()
-            }
-          }
+//           let stabilization_period = case
+//             updated_stabilization_unix == last_executed_stabilization_unix
+//           {
+//             True -> background_key.stabilization_period
+//             False -> {
+//               generate_waiting_period()
+//             }
+//           }
 
-          let finger_fix_period = case
-            updated_finger_fix_unix == last_executed_finger_fix_unix
-          {
-            True -> background_key.finger_fix_period
-            False -> {
-              generate_waiting_period()
-            }
-          }
+//           let finger_fix_period = case
+//             updated_finger_fix_unix == last_executed_finger_fix_unix
+//           {
+//             True -> background_key.finger_fix_period
+//             False -> {
+//               generate_waiting_period()
+//             }
+//           }
 
-          BackgroundKey(
-            subject: subject,
-            stabilization_period: stabilization_period,
-            finger_fix_period: finger_fix_period,
-            last_executed_stabilization_unix: updated_stabilization_unix,
-            last_executed_finger_fix_unix: updated_finger_fix_unix,
-          )
-        })
-      background_process(updated_background_key_list, False)
-    }
-  }
+//           BackgroundKey(
+//             subject: subject,
+//             stabilization_period: stabilization_period,
+//             finger_fix_period: finger_fix_period,
+//             last_executed_stabilization_unix: updated_stabilization_unix,
+//             last_executed_finger_fix_unix: updated_finger_fix_unix,
+//           )
+//         })
+//       background_process(updated_background_key_list, False)
+//     }
+//   }
+// }
+
+fn background_process(background_key: BackgroundKey) {
+  process.sleep(background_key.stabilization_period)
+  let subject = background_key.subject
+  actor.send(subject, Stabilize(subject))
+  process.sleep(5000)
+  actor.send(subject, FixFingers(subject))
+  background_process(background_key)
 }
 
-fn generate_waiting_period() -> Float {
+fn node_workflow(background_key: BackgroundKey) {
+  process.spawn(fn() { background_process(background_key) })
+}
+
+fn generate_waiting_period() -> Int {
   let generator = random.int(0, 30)
   let period = random.random_sample(generator)
-  int.to_float(period)
+  period * 1000
 }
 
 pub fn add_power_of_2(id: BitArray, power: Int, m: Int) -> BitArray {
@@ -209,16 +215,13 @@ fn initialize_network(id: BitArray, m: Int) -> BackgroundKey {
   let subject = actor.data
   actor.send(subject, Create(subject))
   let stabilization_period = generate_waiting_period()
-  let finger_fix_period = generate_waiting_period()
-  BackgroundKey(
-    subject: subject,
-    stabilization_period: stabilization_period,
-    finger_fix_period: finger_fix_period,
-    last_executed_stabilization_unix: timestamp.system_time()
-      |> timestamp.to_unix_seconds(),
-    last_executed_finger_fix_unix: timestamp.system_time()
-      |> timestamp.to_unix_seconds(),
-  )
+  let background_key =
+    BackgroundKey(subject: subject, stabilization_period: stabilization_period)
+  process.spawn(fn() {
+    node_workflow(background_key)
+    background_process(background_key)
+  })
+  background_key
 }
 
 pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
@@ -247,20 +250,14 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
       process.sleep(5000)
       let stabilization_period = generate_waiting_period()
       let finger_fix_period = generate_waiting_period()
-      BackgroundKey(
-        subject: subject,
-        stabilization_period: stabilization_period,
-        finger_fix_period: finger_fix_period,
-        last_executed_stabilization_unix: timestamp.system_time()
-          |> timestamp.to_unix_seconds(),
-        last_executed_finger_fix_unix: timestamp.system_time()
-          |> timestamp.to_unix_seconds(),
-      )
+      let background_key =
+        BackgroundKey(
+          subject: subject,
+          stabilization_period: stabilization_period,
+        )
+      process.spawn(fn() { background_process(background_key) })
+      background_key
     })
-  let background_key_list =
-    list.append([root_background_key], actor_subject_list)
-
-  background_process(background_key_list, False)
   process.sleep(5000)
   Nil
 }
