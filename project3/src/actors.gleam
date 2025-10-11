@@ -13,6 +13,10 @@ import prng/random
 
 const call_milliseconds = 50_000
 
+const joining_gap_milliseconds = 5000
+
+const requests_gap_milliseconds = 1000
+
 type Node {
   Node(id: BitArray, subject: process.Subject(Message))
 }
@@ -21,28 +25,8 @@ type Config {
   Config(counter: Int, max: Int)
 }
 
-// fn generate_ip_address(dictionary) -> String {
-//   let generator = random.int(0, 255)
-//   let octet1 = random.random_sample(generator)
-//   let octet2 = random.random_sample(generator)
-//   let octet3 = random.random_sample(generator)
-//   let octet4 = random.random_sample(generator)
-//   let ip =
-//     int.to_string(octet1)
-//     <> "."
-//     <> int.to_string(octet2)
-//     <> "."
-//     <> int.to_string(octet3)
-//     <> "."
-//     <> int.to_string(octet4)
-//   case dict.has_key(dictionary, ip) {
-//     True -> ip
-//     False -> generate_ip_address(dictionary)
-//   }
-// }
-
 fn generate_waiting_period() -> Int {
-  let generator = random.int(10, 30)
+  let generator = random.int(5, 15)
   let period = random.random_sample(generator)
   period * 1000
 }
@@ -130,6 +114,14 @@ fn generate_simple_ip(node: Int) -> String {
   "ip-address" <> "." <> int.to_string(node)
 }
 
+fn generate_lookup_id() -> BitArray {
+  let generator = random.int(20, 300)
+  let node_val = random.random_sample(generator)
+  let ip = generate_simple_ip(node_val)
+  let id = generate_identifier(ip)
+  id
+}
+
 fn generate_identifier(str: String) -> BitArray {
   let digest = crypto.hash(crypto.Sha1, bit_array.from_string(str))
 }
@@ -139,7 +131,12 @@ fn generate_base_finger_list(m: Int) -> List(Option(Node)) {
   |> list.map(fn(_idx) { None })
 }
 
-fn initialize_network(id: BitArray, m: Int, requests: Int) {
+fn initialize_network(
+  id: BitArray,
+  m: Int,
+  requests: Int,
+  coordinator_subject: process.Subject(CoordinatorMessage),
+) {
   let finger_list = generate_base_finger_list(m)
   let assert Ok(actor) =
     actor.new(#(id, None, None, finger_list, Config(0, m)))
@@ -149,13 +146,35 @@ fn initialize_network(id: BitArray, m: Int, requests: Int) {
   actor.send(subject, Create(subject))
   let stabilization_period = generate_waiting_period()
   let finger_fix_period = generate_waiting_period()
+
+  process.send_after(
+    coordinator_subject,
+    requests_gap_milliseconds,
+    ReceiveRequest(coordinator_subject, generate_lookup_id(), subject, requests),
+  )
   process.send_after(subject, stabilization_period, Stabilize(subject))
   process.send_after(subject, finger_fix_period, FixFingers(subject))
   subject
 }
 
+fn termination_condition(
+  coordinator_subject: process.Subject(CoordinatorMessage),
+  nodes: Int,
+) {
+  let cnt = process.call(coordinator_subject, call_milliseconds, GetStatus)
+  case cnt == nodes {
+    True -> Nil
+    False -> termination_condition(coordinator_subject, nodes)
+  }
+}
+
 pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
   io.println("Start simulation.")
+
+  let assert Ok(coordinator_actor) =
+    actor.new([]) |> actor.on_message(handle_coordinator_message) |> actor.start
+  let coordinator_subject = coordinator_actor.data
+
   let ip = generate_simple_ip(0)
   let id = generate_identifier(ip)
   io.println("First ID is: ")
@@ -164,10 +183,12 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
   let m = float.round(m) + 1
-  let network_subject = initialize_network(id, m, requests)
+
+  let network_subject = initialize_network(id, m, requests, coordinator_subject)
+
   let actor_subject_list =
     list.range(1, nodes - 1)
-    |> list.map(fn(node) {
+    |> list.index_map(fn(node, idx) {
       let ip = generate_simple_ip(node)
       let bitarray = generate_identifier(ip)
       let finger_list = generate_base_finger_list(m)
@@ -176,18 +197,40 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
         |> actor.on_message(handle_message)
         |> actor.start
       let subject = actor.data
-      process.send_after(subject, 5000, Join(network_subject, subject))
-      let stabilization_period = generate_waiting_period()
-      let finger_fix_period = generate_waiting_period()
       process.send_after(
         subject,
-        stabilization_period + 5000,
+        joining_gap_milliseconds * { idx + 1 },
+        Join(network_subject, subject),
+      )
+
+      process.send_after(
+        coordinator_subject,
+        joining_gap_milliseconds * { idx + 1 } + requests_gap_milliseconds,
+        ReceiveRequest(
+          coordinator_subject,
+          generate_lookup_id(),
+          subject,
+          requests,
+        ),
+      )
+
+      let stabilization_period = generate_waiting_period()
+      let finger_fix_period = generate_waiting_period()
+
+      process.send_after(
+        subject,
+        stabilization_period + joining_gap_milliseconds * { idx + 1 },
         Stabilize(subject),
       )
-      process.send_after(subject, finger_fix_period + 5000, FixFingers(subject))
+      process.send_after(
+        subject,
+        finger_fix_period + joining_gap_milliseconds * { idx + 1 },
+        FixFingers(subject),
+      )
       subject
     })
 
+  termination_condition(coordinator_subject, nodes)
   Nil
 }
 
@@ -373,13 +416,13 @@ type CoordinatorMessage {
     process.Subject(Message),
     Int,
   )
-  GetStatus(process.Subject(List(Bool)))
+  GetStatus(process.Subject(Int))
 }
 
 fn handle_coordinator_message(
   state: List(#(process.Subject(Message), Bool)),
   message: CoordinatorMessage,
-) -> actor.Next(List(#(process.Subject(Message), Bool)), Message) {
+) -> actor.Next(List(#(process.Subject(Message), Bool)), CoordinatorMessage) {
   case message {
     ReceiveRequest(coordinator_subject, id, subject, requests) -> {
       let current_subjects = list.map(state, fn(entry) { entry.0 })
@@ -390,8 +433,13 @@ fn handle_coordinator_message(
       }
       process.send_after(
         coordinator_subject,
-        1000,
-        ReceiveRequest(coordinator_subject, <<"">>, subject, requests - 1),
+        requests_gap_milliseconds,
+        ReceiveRequest(
+          coordinator_subject,
+          generate_lookup_id(),
+          subject,
+          requests - 1,
+        ),
       )
       let complete_execution = requests <= 0
       let updated_list = case complete_execution {
@@ -408,7 +456,7 @@ fn handle_coordinator_message(
       actor.continue(updated_list)
     }
     GetStatus(client) -> {
-      let status_list = list.map(state, fn(entry) { entry.1 })
+      let status_list = list.count(state, fn(entry) { entry.1 == True })
       actor.send(client, status_list)
       actor.continue(state)
     }
