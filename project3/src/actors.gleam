@@ -17,111 +17,32 @@ type Node {
   Node(id: BitArray, subject: process.Subject(Message))
 }
 
-type BackgroundKey {
-  BackgroundKey(subject: process.Subject(Message), stabilization_period: Int)
-}
-
 type Config {
   Config(counter: Int, max: Int)
 }
 
-// fn background_process(background_key_list: List(BackgroundKey), terminate: Bool) {
-//   case terminate {
-//     True -> True
-//     False -> {
-//       let updated_background_key_list =
-//         list.map(background_key_list, fn(background_key) {
-//           let subject = background_key.subject
-
-//           let last_executed_stabilization_unix =
-//             background_key.last_executed_stabilization_unix
-//           let last_executed_finger_fix_unix =
-//             background_key.last_executed_finger_fix_unix
-
-//           let current_unix =
-//             timestamp.system_time() |> timestamp.to_unix_seconds()
-
-//           let updated_stabilization_unix = case
-//             current_unix
-//             >. last_executed_stabilization_unix
-//             + background_key.stabilization_period
-//           {
-//             True -> {
-//               actor.send(subject, Stabilize(subject))
-//               current_unix
-//             }
-//             False -> last_executed_stabilization_unix
-//           }
-
-//           let updated_finger_fix_unix = case
-//             current_unix
-//             >. last_executed_finger_fix_unix + background_key.finger_fix_period
-//           {
-//             True -> {
-//               actor.send(subject, FixFingers(subject))
-//               current_unix
-//             }
-//             False -> last_executed_finger_fix_unix
-//           }
-
-//           let stabilization_period = case
-//             updated_stabilization_unix == last_executed_stabilization_unix
-//           {
-//             True -> background_key.stabilization_period
-//             False -> {
-//               generate_waiting_period()
-//             }
-//           }
-
-//           let finger_fix_period = case
-//             updated_finger_fix_unix == last_executed_finger_fix_unix
-//           {
-//             True -> background_key.finger_fix_period
-//             False -> {
-//               generate_waiting_period()
-//             }
-//           }
-
-//           BackgroundKey(
-//             subject: subject,
-//             stabilization_period: stabilization_period,
-//             finger_fix_period: finger_fix_period,
-//             last_executed_stabilization_unix: updated_stabilization_unix,
-//             last_executed_finger_fix_unix: updated_finger_fix_unix,
-//           )
-//         })
-//       background_process(updated_background_key_list, False)
-//     }
+// fn generate_ip_address(dictionary) -> String {
+//   let generator = random.int(0, 255)
+//   let octet1 = random.random_sample(generator)
+//   let octet2 = random.random_sample(generator)
+//   let octet3 = random.random_sample(generator)
+//   let octet4 = random.random_sample(generator)
+//   let ip =
+//     int.to_string(octet1)
+//     <> "."
+//     <> int.to_string(octet2)
+//     <> "."
+//     <> int.to_string(octet3)
+//     <> "."
+//     <> int.to_string(octet4)
+//   case dict.has_key(dictionary, ip) {
+//     True -> ip
+//     False -> generate_ip_address(dictionary)
 //   }
 // }
 
-fn background_process(background_key: BackgroundKey) {
-  process.sleep(background_key.stabilization_period)
-  let subject = background_key.subject
-  actor.send(subject, Stabilize(subject))
-  process.sleep(5000)
-  actor.send(subject, FixFingers(subject))
-  background_process(background_key)
-}
-
-fn request_loop(background_key: BackgroundKey, requests: Int) {
-  case requests > 0 {
-    True ->
-      process.call(background_key.subject, call_milliseconds, FindSuccessor(
-        <<"">>,
-        _,
-      ))
-    False -> request_loop(background_key, requests - 1)
-  }
-}
-
-fn node_workflow(background_key: BackgroundKey, requests: Int) {
-  process.spawn(fn() { background_process(background_key) })
-  request_loop(background_key, requests)
-}
-
 fn generate_waiting_period() -> Int {
-  let generator = random.int(0, 30)
+  let generator = random.int(10, 30)
   let period = random.random_sample(generator)
   period * 1000
 }
@@ -218,7 +139,7 @@ fn generate_base_finger_list(m: Int) -> List(Option(Node)) {
   |> list.map(fn(_idx) { None })
 }
 
-fn initialize_network(id: BitArray, m: Int, requests: Int) -> BackgroundKey {
+fn initialize_network(id: BitArray, m: Int, requests: Int) {
   let finger_list = generate_base_finger_list(m)
   let assert Ok(actor) =
     actor.new(#(id, None, None, finger_list, Config(0, m)))
@@ -227,10 +148,10 @@ fn initialize_network(id: BitArray, m: Int, requests: Int) -> BackgroundKey {
   let subject = actor.data
   actor.send(subject, Create(subject))
   let stabilization_period = generate_waiting_period()
-  let background_key =
-    BackgroundKey(subject: subject, stabilization_period: stabilization_period)
-  process.spawn(fn() { node_workflow(background_key, requests) })
-  background_key
+  let finger_fix_period = generate_waiting_period()
+  process.send_after(subject, stabilization_period, Stabilize(subject))
+  process.send_after(subject, finger_fix_period, FixFingers(subject))
+  subject
 }
 
 pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
@@ -243,7 +164,7 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
   let m = float.round(m) + 1
-  let root_background_key = initialize_network(id, m, requests)
+  let network_subject = initialize_network(id, m, requests)
   let actor_subject_list =
     list.range(1, nodes - 1)
     |> list.map(fn(node) {
@@ -255,19 +176,18 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
         |> actor.on_message(handle_message)
         |> actor.start
       let subject = actor.data
-      actor.send(subject, Join(root_background_key.subject, subject))
-      process.sleep(5000)
+      process.send_after(subject, 5000, Join(network_subject, subject))
       let stabilization_period = generate_waiting_period()
       let finger_fix_period = generate_waiting_period()
-      let background_key =
-        BackgroundKey(
-          subject: subject,
-          stabilization_period: stabilization_period,
-        )
-      process.spawn(fn() { node_workflow(background_key, requests) })
-      background_key
+      process.send_after(
+        subject,
+        stabilization_period + 5000,
+        Stabilize(subject),
+      )
+      process.send_after(subject, finger_fix_period + 5000, FixFingers(subject))
+      subject
     })
-  process.sleep(5000)
+
   Nil
 }
 
@@ -402,6 +322,11 @@ fn handle_message(
       }
       let assert Some(updated_successor_node) = updated_successor
       actor.send(updated_successor_node.subject, Notify(node_id, my_subject))
+      process.send_after(
+        my_subject,
+        generate_waiting_period(),
+        Stabilize(my_subject),
+      )
       actor.continue(#(state.0, state.1, updated_successor, state.3, state.4))
     }
     FixFingers(my_subject) -> {
@@ -425,6 +350,11 @@ fn handle_message(
             False -> x
           }
         })
+      process.send_after(
+        my_subject,
+        generate_waiting_period(),
+        FixFingers(my_subject),
+      )
       actor.continue(#(
         state.0,
         state.1,
@@ -432,6 +362,55 @@ fn handle_message(
         updated_finger_list,
         Config(updated_next, { state.4 }.max),
       ))
+    }
+  }
+}
+
+type CoordinatorMessage {
+  ReceiveRequest(
+    process.Subject(CoordinatorMessage),
+    BitArray,
+    process.Subject(Message),
+    Int,
+  )
+  GetStatus(process.Subject(List(Bool)))
+}
+
+fn handle_coordinator_message(
+  state: List(#(process.Subject(Message), Bool)),
+  message: CoordinatorMessage,
+) -> actor.Next(List(#(process.Subject(Message), Bool)), Message) {
+  case message {
+    ReceiveRequest(coordinator_subject, id, subject, requests) -> {
+      let current_subjects = list.map(state, fn(entry) { entry.0 })
+      let is_present = list.contains(current_subjects, subject)
+      let updated_list = case is_present {
+        True -> state
+        False -> [#(subject, False), ..state]
+      }
+      process.send_after(
+        coordinator_subject,
+        1000,
+        ReceiveRequest(coordinator_subject, <<"">>, subject, requests - 1),
+      )
+      let complete_execution = requests <= 0
+      let updated_list = case complete_execution {
+        True -> {
+          let new_list =
+            list.filter(updated_list, fn(element) { element.0 != subject })
+          let final_list = [#(subject, True), ..new_list]
+        }
+        False -> {
+          process.call(subject, call_milliseconds, FindSuccessor(id, _))
+          updated_list
+        }
+      }
+      actor.continue(updated_list)
+    }
+    GetStatus(client) -> {
+      let status_list = list.map(state, fn(entry) { entry.1 })
+      actor.send(client, status_list)
+      actor.continue(state)
     }
   }
 }
