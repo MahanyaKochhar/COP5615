@@ -1,5 +1,4 @@
 import gleam/bit_array
-import gleam/crypto
 import gleam/erlang/process
 import gleam/float
 import gleam/int
@@ -9,7 +8,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{Eq, Gt, Lt}
 import gleam/otp/actor
 import gleam/result
-import prng/random
+import utils
 
 const call_milliseconds = 50_000
 
@@ -23,12 +22,6 @@ type Node {
 
 type Config {
   Config(counter: Int, max: Int)
-}
-
-fn generate_waiting_period() -> Int {
-  let generator = random.int(5, 15)
-  let period = random.random_sample(generator)
-  period * 1000
 }
 
 pub fn add_power_of_2(id: BitArray, power: Int, m: Int) -> BitArray {
@@ -77,22 +70,6 @@ fn build_byte_array(bytes: List(Int), acc: BitArray) -> BitArray {
   }
 }
 
-pub fn is_between_exclusive_inclusive(
-  id: BitArray,
-  start: BitArray,
-  end: BitArray,
-) -> Bool {
-  case bit_array.compare(start, end) {
-    Lt -> {
-      bit_array.compare(id, start) == Gt && bit_array.compare(id, end) != Gt
-    }
-    Gt -> {
-      bit_array.compare(id, start) == Gt || bit_array.compare(id, end) != Gt
-    }
-    Eq -> True
-  }
-}
-
 pub fn is_between_exclusive_exclusive(
   id: BitArray,
   start: BitArray,
@@ -108,22 +85,6 @@ pub fn is_between_exclusive_exclusive(
     Eq -> id != start
     // or False if full circle should exclude everything
   }
-}
-
-fn generate_simple_ip(node: Int) -> String {
-  "ip-address" <> "." <> int.to_string(node)
-}
-
-fn generate_lookup_id() -> BitArray {
-  let generator = random.int(20, 300)
-  let node_val = random.random_sample(generator)
-  let ip = generate_simple_ip(node_val)
-  let id = generate_identifier(ip)
-  id
-}
-
-fn generate_identifier(str: String) -> BitArray {
-  let digest = crypto.hash(crypto.Sha1, bit_array.from_string(str))
 }
 
 fn generate_base_finger_list(m: Int) -> List(Option(Node)) {
@@ -144,13 +105,18 @@ fn initialize_network(
     |> actor.start
   let subject = actor.data
   actor.send(subject, Create(subject))
-  let stabilization_period = generate_waiting_period()
-  let finger_fix_period = generate_waiting_period()
+  let stabilization_period = utils.generate_waiting_period()
+  let finger_fix_period = utils.generate_waiting_period()
 
   process.send_after(
     coordinator_subject,
     requests_gap_milliseconds,
-    ReceiveRequest(coordinator_subject, generate_lookup_id(), subject, requests),
+    ReceiveRequest(
+      coordinator_subject,
+      utils.generate_lookup_id(),
+      subject,
+      requests,
+    ),
   )
   process.send_after(subject, stabilization_period, Stabilize(subject))
   process.send_after(subject, finger_fix_period, FixFingers(subject))
@@ -175,22 +141,26 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
     actor.new([]) |> actor.on_message(handle_coordinator_message) |> actor.start
   let coordinator_subject = coordinator_actor.data
 
-  let ip = generate_simple_ip(0)
-  let id = generate_identifier(ip)
-  io.println("First ID is: ")
-  echo id
+  // io.println("Coordinator Created.")
+
+  let ip = utils.generate_simple_ip(0)
+  let id = utils.generate_identifier(ip)
+  // io.println("First ID is: ")
+  // echo id
   let m =
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
   let m = float.round(m) + 1
 
+  // io.println("m is " <> int.to_string(m))
+
   let network_subject = initialize_network(id, m, requests, coordinator_subject)
 
-  let actor_subject_list =
+  let _actor_subject_list =
     list.range(1, nodes - 1)
     |> list.index_map(fn(node, idx) {
-      let ip = generate_simple_ip(node)
-      let bitarray = generate_identifier(ip)
+      let ip = utils.generate_simple_ip(node)
+      let bitarray = utils.generate_identifier(ip)
       let finger_list = generate_base_finger_list(m)
       let assert Ok(actor) =
         actor.new(#(bitarray, None, None, finger_list, Config(0, m)))
@@ -208,14 +178,14 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
         joining_gap_milliseconds * { idx + 1 } + requests_gap_milliseconds,
         ReceiveRequest(
           coordinator_subject,
-          generate_lookup_id(),
+          utils.generate_lookup_id(),
           subject,
           requests,
         ),
       )
 
-      let stabilization_period = generate_waiting_period()
-      let finger_fix_period = generate_waiting_period()
+      let stabilization_period = utils.generate_waiting_period()
+      let finger_fix_period = utils.generate_waiting_period()
 
       process.send_after(
         subject,
@@ -230,7 +200,7 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
       subject
     })
 
-  termination_condition(coordinator_subject, nodes)
+  termination_condition(coordinator_subject, 2)
   Nil
 }
 
@@ -277,7 +247,8 @@ fn handle_message(
       let id = state.0
       let predecessor = None
       let successor = Node(id: id, subject: subject)
-      io.println("Created network.")
+      // io.println("Created network with parent subject.")
+      // echo subject
       actor.continue(#(id, predecessor, Some(successor), state.3, state.4))
     }
     FindSuccessor(id, client) -> {
@@ -285,11 +256,10 @@ fn handle_message(
       let assert Some(succ) = state.2
       let successor_id = succ.id
       let successor_subject = succ.subject
-      let is_present = is_between_exclusive_inclusive(id, node_id, successor_id)
+      let is_present =
+        utils.is_between_exclusive_inclusive(id, node_id, successor_id)
       case is_present {
         True -> {
-          io.println("Found successor.")
-          echo succ
           process.send(client, #(succ, 0))
         }
         False -> {
@@ -319,8 +289,6 @@ fn handle_message(
       actor.continue(state)
     }
     Notify(possible_id, possible_subject) -> {
-      // echo possible_id
-      // echo possible_subject
       let node_id = state.0
       let predecessor_present = option.is_some(state.1)
       let updated_predecessor = case predecessor_present {
@@ -335,19 +303,17 @@ fn handle_message(
         }
         False -> Some(Node(possible_id, possible_subject))
       }
-      io.println("Updated Predecessor")
-      echo updated_predecessor
+      // io.println("Updated Predecessor")
+      // echo updated_predecessor
       actor.continue(#(state.0, updated_predecessor, state.2, state.3, state.4))
     }
     Join(network_subject, my_subject) -> {
-      io.println("Initiated Join now")
+      // io.println("Initiated Join now")
       let successor =
         process.call(network_subject, call_milliseconds, FindSuccessor(
           state.0,
           _,
         ))
-      io.println("My Successor.")
-      echo successor
       actor.send({ successor.0 }.subject, Notify(state.0, my_subject))
       actor.continue(#(state.0, None, Some(successor.0), state.3, state.4))
     }
@@ -356,6 +322,8 @@ fn handle_message(
       actor.continue(state)
     }
     Stabilize(my_subject) -> {
+      io.println("Running stabilize for ")
+      echo my_subject
       let node_id = state.0
       let assert Some(succ) = state.2
       let res = process.call(succ.subject, call_milliseconds, GetPredecessor)
@@ -374,7 +342,7 @@ fn handle_message(
       actor.send(updated_successor_node.subject, Notify(node_id, my_subject))
       process.send_after(
         my_subject,
-        generate_waiting_period(),
+        utils.generate_waiting_period(),
         Stabilize(my_subject),
       )
       actor.continue(#(state.0, state.1, updated_successor, state.3, state.4))
@@ -402,7 +370,7 @@ fn handle_message(
         })
       process.send_after(
         my_subject,
-        generate_waiting_period(),
+        utils.generate_waiting_period(),
         FixFingers(my_subject),
       )
       actor.continue(#(
@@ -432,34 +400,54 @@ fn handle_coordinator_message(
 ) -> actor.Next(List(#(process.Subject(Message), Bool)), CoordinatorMessage) {
   case message {
     ReceiveRequest(coordinator_subject, id, subject, requests) -> {
+      // io.println(
+      //   "Request Received with lookup id,subject and with requests "
+      //   <> int.to_string(requests),
+      // )
+      // echo id
+      // echo subject
       let current_subjects = list.map(state, fn(entry) { entry.0 })
       let is_present = list.contains(current_subjects, subject)
       let updated_list = case is_present {
         True -> state
         False -> [#(subject, False), ..state]
       }
-      process.send_after(
-        coordinator_subject,
-        requests_gap_milliseconds,
-        ReceiveRequest(
-          coordinator_subject,
-          generate_lookup_id(),
-          subject,
-          requests - 1,
-        ),
-      )
+
+      case requests > 0 {
+        True -> {
+          process.send_after(
+            coordinator_subject,
+            requests_gap_milliseconds,
+            ReceiveRequest(
+              coordinator_subject,
+              utils.generate_lookup_id(),
+              subject,
+              requests - 1,
+            ),
+          )
+          Nil
+        }
+        False -> Nil
+      }
+
       let complete_execution = requests <= 0
       let updated_list = case complete_execution {
         True -> {
           let new_list =
             list.filter(updated_list, fn(element) { element.0 != subject })
-          let final_list = [#(subject, True), ..new_list]
+          let _final_list = [#(subject, True), ..new_list]
         }
         False -> {
-          process.call(subject, call_milliseconds, FindSuccessor(id, _))
+          let res =
+            process.call(subject, call_milliseconds, FindSuccessor(id, _))
+          let hop_count = res.1
+          io.println("Hop Count is ->: " <> int.to_string(hop_count))
           updated_list
         }
       }
+
+      io.println("After request completion , updated list -> ")
+      echo updated_list
       actor.continue(updated_list)
     }
     GetStatus(client) -> {
