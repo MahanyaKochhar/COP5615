@@ -257,7 +257,7 @@ fn closest_preceding_node(
 
 type Message {
   Create(process.Subject(Message))
-  FindSuccessor(id: BitArray, reply_to: process.Subject(Node))
+  FindSuccessor(id: BitArray, reply_to: process.Subject(#(Node, Int)))
   Join(process.Subject(Message), process.Subject(Message))
   Notify(BitArray, process.Subject(Message))
   GetPredecessor(process.Subject(Option(Node)))
@@ -290,21 +290,28 @@ fn handle_message(
         True -> {
           io.println("Found successor.")
           echo succ
-          process.send(client, succ)
+          process.send(client, #(succ, 0))
         }
         False -> {
           let closest_node = closest_preceding_node(state.3, node_id, id)
           let res = case closest_node {
-            Some(node) ->
-              process.call(node.subject, call_milliseconds, FindSuccessor(
-                state.0,
-                _,
-              ))
-            None ->
-              process.call(successor_subject, call_milliseconds, FindSuccessor(
-                state.0,
-                _,
-              ))
+            Some(node) -> {
+              let res =
+                process.call(node.subject, call_milliseconds, FindSuccessor(
+                  state.0,
+                  _,
+                ))
+              #(res.0, res.1 + 1)
+            }
+            None -> {
+              let res =
+                process.call(
+                  successor_subject,
+                  call_milliseconds,
+                  FindSuccessor(state.0, _),
+                )
+              #(res.0, res.1 + 1)
+            }
           }
           process.send(client, res)
         }
@@ -341,8 +348,8 @@ fn handle_message(
         ))
       io.println("My Successor.")
       echo successor
-      actor.send(successor.subject, Notify(state.0, my_subject))
-      actor.continue(#(state.0, None, Some(successor), state.3, state.4))
+      actor.send({ successor.0 }.subject, Notify(state.0, my_subject))
+      actor.continue(#(state.0, None, Some(successor.0), state.3, state.4))
     }
     GetPredecessor(client) -> {
       process.send(client, state.1)
@@ -388,7 +395,7 @@ fn handle_message(
                   add_power_of_2(state.0, i, 160),
                   _,
                 ))
-              Some(successor)
+              Some(successor.0)
             }
             False -> x
           }
