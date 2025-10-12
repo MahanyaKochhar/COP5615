@@ -5,9 +5,10 @@ import gleam/order.{Eq, Gt, Lt}
 import prng/random
 
 pub fn generate_waiting_period() -> Int {
-  let generator = random.int(2, 4)
-  let period = random.random_sample(generator)
-  period * 1000
+  //   let generator = random.int(10, 25)
+  //   let period = random.random_sample(generator)
+  //   period * 1000
+  15_000
 }
 
 pub fn generate_simple_ip(node: Int) -> String {
