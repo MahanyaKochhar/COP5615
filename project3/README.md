@@ -23,7 +23,7 @@
 10. Finger Table Updates
 - Finger Table updates are immediately called after the stabilization round of the node. This ensures finger table entries are updated only when the successor nodes of each node are correct.
 11. Failure-Free Assumption
-Nodes do not fail or leave the network once joined. This simplifies stabilization and lookup behavior in the simulation.
+- Nodes do not fail or leave the network once joined. This simplifies stabilization and lookup behavior in the simulation.
 12. Convergence:
 - The network is considered stable once all nodes have completed their join and stabilization cycles, and all scheduled requests have been processed.
 13. Performance Measurement:
