@@ -184,7 +184,7 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
       subject
     })
 
-  termination_condition(coordinator_subject, 2)
+  termination_condition(coordinator_subject, nodes)
   Nil
 }
 
@@ -312,7 +312,7 @@ fn handle_message(
       let node_id = state.0
       // io.println("Stabilize Node id")
       let assert Some(succ) = state.2
-      echo succ.subject
+      // echo succ.subject
       let res = case succ.subject == my_subject {
         True -> state.1
         False -> process.call(succ.subject, call_milliseconds, GetPredecessor)
@@ -343,31 +343,36 @@ fn handle_message(
       actor.send(updated_successor_node.subject, Notify(node_id, my_subject))
       io.println("Stabilization Completed for ")
       echo my_subject
-      // process.send(my_subject, FixFingers(my_subject))
+      process.send(my_subject, FixFingers(my_subject))
 
       actor.continue(#(state.0, state.1, updated_successor, state.3, state.4))
     }
     FixFingers(my_subject) -> {
+      io.println("Inside Fix Fingers for ->")
+      echo my_subject
       let next = { state.4 }.counter + 1
       let updated_next = case next > { state.4 }.max {
         True -> 1
         False -> next
       }
+      io.println("Index is " <> int.to_string(updated_next))
       let finger_list = state.3
       let updated_finger_list =
         list.index_map(finger_list, fn(x, i) {
           case i == { updated_next - 1 } {
             True -> {
-              let successor =
-                process.call(my_subject, call_milliseconds, FindSuccessor(
-                  add_power_of_2(state.0, i, 160),
-                  _,
-                ))
-              Some(successor.0)
+              // let successor =
+              //   process.call(my_subject, call_milliseconds, FindSuccessor(
+              //     add_power_of_2(state.0, i, 160),
+              //     _,
+              //   ))
+              // Some(successor.0)
+              x
             }
             False -> x
           }
         })
+      echo updated_finger_list
       // process.send_after(
       //   my_subject,
       //   utils.generate_waiting_period(),
