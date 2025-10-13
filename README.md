@@ -85,15 +85,13 @@ This Gleam implementation successfully demonstrates a Chord-style distributed ne
   
   * Results:
     
-      For `gleam run -m project3 1000 20`
-    
-      Average number of hops = (Total hop count/number of hops)
-                             = (19/48)
-                             = 0.396
+    Average number of hops: 
+
+      ![Image](./assets/Hops.png "Average number of Hops")
 
     Mean path length:
     
-      <img width="342" height="193" alt="image" src="https://github.com/user-attachments/assets/9ce7e66d-9194-4a3e-9ece-fbebfe22b6fd" />
+      ![Image](./assets/PathLen.jpg "Mean Path Length")
 
 #### *5. Summary:*
 
