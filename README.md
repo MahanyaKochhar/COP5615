@@ -77,9 +77,12 @@ This Gleam implementation successfully demonstrates a Chord-style distributed ne
 
   •	Multiple actors were created to simulate a small distributed network.
   
-  •	The system ran smoothly with:
-    o	Up to ~1000 simultaneous actors (each maintaining independent state).
-    o	Each actor handling several hundred messages (push/pop cycles) without timeouts or message loss.
+  •	The system ran with up to ~1000 simultaneous actors (each maintaining independent state). 
+    Each actor handling several hundred messages (push/pop cycles) without timeouts or message loss. 
+    
+  - Mean path length for 1000 nodes was calculated:
+
+    ![Image](./assets/PathLen.jpg "Mean Path Length")
     
   •	Beyond that scale, message scheduling overhead started increasing slightly due to local process limits, but no functional failures occurred.
   
@@ -89,9 +92,6 @@ This Gleam implementation successfully demonstrates a Chord-style distributed ne
 
       ![Image](./assets/Hops.png "Average number of Hops")
 
-    Mean path length:
-    
-      ![Image](./assets/PathLen.jpg "Mean Path Length")
 
 #### *5. Summary:*
 
