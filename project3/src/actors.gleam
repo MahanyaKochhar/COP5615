@@ -129,8 +129,8 @@ pub fn start_simulation(nodes: Int, requests: Int) -> Nil {
 
   let ip = utils.generate_simple_ip(0)
   let id = utils.generate_identifier(ip)
-  io.println("First ID is: ")
-  echo id
+  // io.println("First ID is: ")
+  // echo id
   let m =
     { float.logarithm(int.to_float(nodes)) |> result.unwrap(1.0) }
     /. { float.logarithm(int.to_float(2)) |> result.unwrap(1.0) }
@@ -326,7 +326,7 @@ fn handle_message(
         }
         False -> Some(Node(possible_id, possible_subject))
       }
-      io.println("Updated Predecessor")
+      // io.println("Updated Predecessor")
       // echo updated_predecessor
       actor.continue(#(state.0, updated_predecessor, state.2, state.3, state.4))
     }
@@ -338,39 +338,39 @@ fn handle_message(
           _,
         ))
       actor.send({ successor.0 }.subject, Notify(state.0, my_subject))
-      io.println("Join Completed")
+      // io.println("Join Completed")
       actor.continue(#(state.0, None, Some(successor.0), state.3, state.4))
     }
     GetPredecessor(client) -> {
-      io.println("In Predecessor Call")
+      // io.println("In Predecessor Call")
       process.send(client, state.1)
       actor.continue(state)
     }
     Stabilize(my_subject) -> {
-      io.println("Running stabilize for ")
-      echo my_subject
+      // io.println("Running stabilize for ")
+      // echo my_subject
       let node_id = state.0
-      echo node_id
+      // echo node_id
       // io.println("Stabilize Node id")
       let assert Some(succ) = state.2
       // echo succ.subject
       let res = case succ.subject == my_subject {
         True -> state.1
         False -> {
-          echo succ.subject
-          echo my_subject
-          io.println("In here")
+          // echo succ.subject
+          // echo my_subject
+          // io.println("In here")
           let res =
             process.call(succ.subject, call_milliseconds, GetPredecessor)
-          io.println("Now resp is")
-          echo res
+          // io.println("Now resp is")
+          // echo res
           res
           // state.1
         }
       }
 
-      io.println("Predecessor is : ")
-      echo res
+      // io.println("Predecessor is : ")
+      // echo res
       let updated_successor = case res {
         Some(val) -> {
           let in_between =
@@ -394,20 +394,20 @@ fn handle_message(
       let assert Some(updated_successor_node) = updated_successor
 
       actor.send(updated_successor_node.subject, Notify(node_id, my_subject))
-      io.println("Stabilization Completed for ")
-      echo my_subject
+      // io.println("Stabilization Completed for ")
+      // echo my_subject
 
       actor.continue(#(state.0, state.1, updated_successor, state.3, state.4))
     }
     FixFingers(my_subject) -> {
-      io.println("Inside Fix Fingers for -> ")
-      echo my_subject
+      // io.println("Inside Fix Fingers for -> ")
+      // echo my_subject
       let next = { state.4 }.counter + 1
       let updated_next = case next > { state.4 }.max {
         True -> 1
         False -> next
       }
-      io.println("Index is " <> int.to_string(updated_next))
+      // io.println("Index is " <> int.to_string(updated_next))
       let finger_list = state.3
       let assert Some(succ) = state.2
       let updated_finger_list =
@@ -426,7 +426,7 @@ fn handle_message(
             False -> x
           }
         })
-      echo updated_finger_list
+      // echo updated_finger_list
       actor.continue(#(
         state.0,
         state.1,
@@ -505,8 +505,8 @@ fn handle_coordinator_message(
         }
       }
 
-      io.println("After request completion , updated list -> ")
-      echo updated_list
+      // io.println("After request completion , updated list -> ")
+      // echo updated_list
       actor.continue(updated_state)
     }
     GetStatus(client) -> {
