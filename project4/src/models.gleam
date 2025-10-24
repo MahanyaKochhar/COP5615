@@ -1,6 +1,10 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 
+pub type UserPrincipal {
+  UserPrincipal(email: String)
+}
+
 pub type User {
   User(
     id: Option(Int),
@@ -18,7 +22,17 @@ pub type SubReddit {
     name: String,
     title: String,
     created_by: Option(Int),
-    member_count: Int,
+    users: Option(List(Int)),
+  )
+}
+
+pub type Post {
+  Post(
+    id: Option(Int),
+    uuid: Option(String),
+    subreddit_id: Option(Int),
+    author_id: Option(Int),
+    body: String,
   )
 }
 
@@ -26,6 +40,7 @@ pub type Directory {
   Directory(
     users: Dict(String, User),
     subreddits: Dict(String, SubReddit),
+    posts: Dict(String, Post),
     entities: Dict(Entity, Int),
   )
 }
