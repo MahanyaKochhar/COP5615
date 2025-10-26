@@ -6,33 +6,41 @@ pub type UserPrincipal {
 }
 
 pub type User {
-  User(
-    id: Option(Int),
-    uuid: Option(String),
-    email: String,
-    password: Option(String),
-    stored_password: Option(BitArray),
-  )
+  User(id: Int, uuid: String, email: String, password: BitArray)
 }
 
 pub type SubReddit {
   SubReddit(
-    id: Option(Int),
-    uuid: Option(String),
+    id: Int,
+    uuid: String,
     name: String,
-    title: String,
-    created_by: Option(Int),
-    users: Option(List(Int)),
+    created_by: Int,
+    users: List(Int),
   )
 }
 
 pub type Post {
   Post(
-    id: Option(Int),
-    uuid: Option(String),
-    subreddit_id: Option(Int),
-    author_id: Option(Int),
+    id: Int,
+    uuid: String,
+    subreddit_id: Int,
+    author_id: Int,
     body: String,
+    upvote: Int,
+    downvote: Int,
+  )
+}
+
+pub type Comment {
+  Comment(
+    id: Int,
+    uuid: String,
+    author_id: Int,
+    post_id: Int,
+    parent_comment_id: Option(Int),
+    body: String,
+    upvote: Int,
+    downvote: Int,
   )
 }
 
@@ -41,6 +49,7 @@ pub type Directory {
     users: Dict(String, User),
     subreddits: Dict(String, SubReddit),
     posts: Dict(String, Post),
+    comments: Dict(String, Comment),
     entities: Dict(Entity, Int),
   )
 }
@@ -49,4 +58,5 @@ pub type Entity {
   UserEntity
   SubRedditEntity
   PostEntity
+  CommentEntity
 }
