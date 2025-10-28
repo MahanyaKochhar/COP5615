@@ -20,7 +20,7 @@ pub type Action {
   LeaveSubReddit(String, UserPrincipal)
   CreatePost(String, String, UserPrincipal)
   CreateComment(String, Option(String), String, UserPrincipal)
-  Vote(String, Option(String), Int, UserPrincipal)
+  Vote(String, Option(String), Int, Int, UserPrincipal)
 }
 
 pub fn handle_action(
@@ -49,6 +49,7 @@ pub fn handle_action(
                 crypto.Sha256,
                 bit_array.from_string(password),
               ),
+              karma: 0,
             )
           let updated_user_dict = dict.insert(user_dict, email, created_user)
           let updated_entity_dict =
@@ -286,23 +287,25 @@ pub fn handle_action(
     }
     Vote(post_uuid, comment_uuid, up, down, user_principal) -> {
       let user_email = user_principal.email
-      case dict.get(state.users, user_email) {
+      let users = state.users
+      case dict.get(users, user_email) {
         Ok(user) -> {
           let user_id = user.id
           let posts_dict = state.posts
           let comments_dict = state.comments
           case dict.get(posts_dict, post_uuid) {
             Ok(post) -> {
+              let author_id = post.author_id
               let comment = case comment_uuid {
                 Some(comment_uuid) -> {
                   case dict.get(comments_dict, comment_uuid) {
                     Ok(comment) -> Some(comment)
-                    None -> None
+                    _ -> None
                   }
                 }
-                False -> None
+                _ -> None
               }
-              case comment {
+              let updated_directory = case comment {
                 Some(comment) -> {
                   let upvote = comment.upvote
                   let downvote = comment.downvote
@@ -312,8 +315,10 @@ pub fn handle_action(
                       upvote: upvote + up,
                       downvote: downvote + down,
                     )
-                  let updated_comment_dict =
-                    dict.insert(comments_dict, comment_uuid, updated_comment)
+                  let updated_comments_dict =
+                    dict.insert(comments_dict, comment.uuid, updated_comment)
+                  let updated_directory =
+                    Directory(..state, comments: updated_comments_dict)
                 }
                 _ -> {
                   let upvote = post.upvote
@@ -322,10 +327,22 @@ pub fn handle_action(
                     Post(..post, upvote: upvote + up, downvote: downvote + down)
                   let updated_posts_dict =
                     dict.insert(posts_dict, post_uuid, updated_post)
-                  let updated_directory = Directory(..state, posts:)
+                  let updated_directory =
+                    Directory(..state, posts: updated_posts_dict)
                 }
               }
+              let author =
+                dict.values(users)
+                |> list.find(fn(user) { user.id == author_id })
+              let assert Ok(user) = author
+              let updated_user = User(..user, karma: user.karma + up - down)
+              let updated_user_dict =
+                dict.insert(users, updated_user.email, updated_user)
+              let updated_directory =
+                Directory(..updated_directory, users: updated_user_dict)
+              actor.continue(updated_directory)
             }
+            _ -> actor.continue(state)
           }
         }
         _ -> {
@@ -334,5 +351,6 @@ pub fn handle_action(
         }
       }
     }
+    GetFeed
   }
 }

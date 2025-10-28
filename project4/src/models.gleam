@@ -6,7 +6,7 @@ pub type UserPrincipal {
 }
 
 pub type User {
-  User(id: Int, uuid: String, email: String, password: BitArray)
+  User(id: Int, uuid: String, email: String, password: BitArray, karma: Int)
 }
 
 pub type SubReddit {
