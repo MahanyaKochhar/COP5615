@@ -6,6 +6,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
+import helpers
 import models.{
   type Comment, type Directory, type Entity, type Post, type SubReddit,
   type User, type UserPrincipal, Comment, CommentEntity, Directory, Post,
@@ -21,6 +22,7 @@ pub type Action {
   CreatePost(String, String, UserPrincipal)
   CreateComment(String, Option(String), String, UserPrincipal)
   Vote(String, Option(String), Int, Int, UserPrincipal)
+  GetFeed(UserPrincipal)
 }
 
 pub fn handle_action(
@@ -351,6 +353,43 @@ pub fn handle_action(
         }
       }
     }
-    GetFeed
+    GetFeed(user_principal) -> {
+      let user_email = user_principal.email
+      let users = state.users
+      case dict.get(users, user_email) {
+        Ok(user) -> {
+          let user_id = user.id
+          let subreddits = state.subreddits
+          let posts = state.posts
+          let comments = state.comments
+          let subreddits_list = dict.values(subreddits)
+          let posts_list = dict.values(posts)
+          let comments_list = dict.values(comments)
+          let user_subreddit_ids =
+            list.filter_map(subreddits_list, fn(subreddit) {
+              let users = subreddit.users
+              case list.contains(users, user_id) {
+                True -> Ok(subreddit.id)
+                False -> Error(1)
+              }
+            })
+          let user_posts =
+            list.filter(posts_list, fn(post) {
+              list.contains(user_subreddit_ids, post.subreddit_id)
+            })
+
+          let user_dto_posts =
+            list.map(posts_list, fn(post) {
+              let post_comments =
+                list.filter(comments_list, fn(comment) {
+                  comment.post_id == post.id
+                })
+            })
+        }
+        _ -> {
+          todo
+        }
+      }
+    }
   }
 }

@@ -31,6 +31,10 @@ pub type Post {
   )
 }
 
+pub type CommentWithChildren {
+  CommentWithChildren(comment: Comment, children: List(CommentWithChildren))
+}
+
 pub type Comment {
   Comment(
     id: Int,
@@ -41,7 +45,12 @@ pub type Comment {
     body: String,
     upvote: Int,
     downvote: Int,
+    comments: List(CommentWithChildren),
   )
+}
+
+pub type CommentTree {
+  CommentTree(comment: Comment, children: List(CommentTree))
 }
 
 pub type Directory {
