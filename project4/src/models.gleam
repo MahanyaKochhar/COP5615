@@ -28,6 +28,7 @@ pub type Post {
     body: String,
     upvote: Int,
     downvote: Int,
+    comments: Option(List(CommentWithChildren)),
   )
 }
 
@@ -45,7 +46,6 @@ pub type Comment {
     body: String,
     upvote: Int,
     downvote: Int,
-    comments: List(CommentWithChildren),
   )
 }
 

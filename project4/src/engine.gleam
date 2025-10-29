@@ -204,6 +204,7 @@ pub fn handle_action(
                   body: body,
                   upvote: 0,
                   downvote: 0,
+                  comments: None,
                 )
               let updated_posts_dict =
                 dict.insert(posts_dict, uuid, created_post)
@@ -384,10 +385,13 @@ pub fn handle_action(
                 list.filter(comments_list, fn(comment) {
                   comment.post_id == post.id
                 })
+              let comment_tree = helpers.build_comment_tree(post_comments)
+              Post(..post, comments: Some(comment_tree))
             })
+          actor.continue(state)
         }
         _ -> {
-          todo
+          actor.continue(state)
         }
       }
     }
