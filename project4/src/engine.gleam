@@ -1,6 +1,7 @@
 import gleam/bit_array
 import gleam/crypto
 import gleam/dict.{type Dict}
+import gleam/erlang/process
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -15,12 +16,27 @@ import models.{
 import youid/uuid
 
 pub type Action {
-  RegisterUser(String, String)
-  CreateSubReddit(String, UserPrincipal)
+  RegisterUser(String, String, process.Subject(Result(String, String)))
+  CreateSubReddit(
+    String,
+    UserPrincipal,
+    process.Subject(Result(String, String)),
+  )
   JoinSubReddit(String, UserPrincipal)
   LeaveSubReddit(String, UserPrincipal)
-  CreatePost(String, String, UserPrincipal)
-  CreateComment(String, Option(String), String, UserPrincipal)
+  CreatePost(
+    String,
+    String,
+    UserPrincipal,
+    process.Subject(Result(String, String)),
+  )
+  CreateComment(
+    String,
+    Option(String),
+    String,
+    UserPrincipal,
+    process.Subject(Result(String, String)),
+  )
   Vote(String, Option(String), Int, Int, UserPrincipal)
   GetFeed(UserPrincipal)
 }
@@ -30,13 +46,14 @@ pub fn handle_action(
   action: Action,
 ) -> actor.Next(Directory, Action) {
   case action {
-    RegisterUser(email, password) -> {
+    RegisterUser(email, password, client) -> {
       let entity_dict = state.entities
       let user_dict = state.users
       let is_already_registered = dict.has_key(user_dict, email)
       let updated_directory = case is_already_registered {
         True -> {
           io.println("Email " <> email <> " is already registered.")
+          actor.send(client, Error("Email is already registered."))
           state
         }
         False -> {
@@ -56,6 +73,7 @@ pub fn handle_action(
           let updated_user_dict = dict.insert(user_dict, email, created_user)
           let updated_entity_dict =
             dict.insert(entity_dict, UserEntity, user_entity_cnt + 1)
+          actor.send(client, Ok(email))
           Directory(
             ..state,
             users: updated_user_dict,
@@ -65,7 +83,7 @@ pub fn handle_action(
       }
       actor.continue(updated_directory)
     }
-    CreateSubReddit(name, user_principal) -> {
+    CreateSubReddit(name, user_principal, client) -> {
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
@@ -93,10 +111,12 @@ pub fn handle_action(
               subreddits: updated_subreddit_dict,
               entities: updated_entity_dict,
             )
+          actor.send(client, Ok(uuid))
           actor.continue(updated_directory)
         }
         _ -> {
           io.println("Invalid user.")
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
@@ -179,7 +199,7 @@ pub fn handle_action(
         }
       }
     }
-    CreatePost(subreddit_uuid, body, user_principal) -> {
+    CreatePost(subreddit_uuid, body, user_principal, client) -> {
       let user_email = user_principal.email
       let entity_dict = state.entities
       case dict.get(state.users, user_email) {
@@ -210,6 +230,7 @@ pub fn handle_action(
                 dict.insert(posts_dict, uuid, created_post)
               let updated_entity_dict =
                 dict.insert(entity_dict, PostEntity, post_entity_cnt + 1)
+              actor.send(client, Ok(uuid))
               let updated_directory =
                 Directory(
                   ..state,
@@ -218,17 +239,19 @@ pub fn handle_action(
                 )
             }
             _ -> {
+              actor.send(client, Error("Subreddit does not exist."))
               state
             }
           }
           actor.continue(updated_directory)
         }
         _ -> {
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
     }
-    CreateComment(post_uuid, comment_uuid, body, user_principal) -> {
+    CreateComment(post_uuid, comment_uuid, body, user_principal, client) -> {
       let user_email = user_principal.email
       let entity_dict = state.entities
       case dict.get(state.users, user_email) {
@@ -269,6 +292,7 @@ pub fn handle_action(
                 dict.insert(comments_dict, uuid, created_comment)
               let updated_entity_dict =
                 dict.insert(entity_dict, CommentEntity, comment_entity_cnt + 1)
+              actor.send(client, Ok(uuid))
               let updated_directory =
                 Directory(
                   ..state,
@@ -277,6 +301,7 @@ pub fn handle_action(
                 )
             }
             _ -> {
+              actor.send(client, Error("Invalid Post."))
               state
             }
           }
@@ -284,6 +309,7 @@ pub fn handle_action(
         }
         _ -> {
           io.println("Invalid user.")
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
