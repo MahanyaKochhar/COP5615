@@ -22,8 +22,8 @@ pub type Action {
     UserPrincipal,
     process.Subject(Result(String, String)),
   )
-  JoinSubReddit(String, UserPrincipal)
-  LeaveSubReddit(String, UserPrincipal)
+  JoinSubReddit(String, UserPrincipal, process.Subject(Result(String, String)))
+  LeaveSubReddit(String, UserPrincipal, process.Subject(Result(String, String)))
   CreatePost(
     String,
     String,
@@ -37,8 +37,16 @@ pub type Action {
     UserPrincipal,
     process.Subject(Result(String, String)),
   )
-  Vote(String, Option(String), Int, Int, UserPrincipal)
-  GetFeed(UserPrincipal)
+  Vote(
+    String,
+    Option(String),
+    Int,
+    Int,
+    UserPrincipal,
+    process.Subject(Result(String, String)),
+  )
+  GetFeed(UserPrincipal, process.Subject(Result(List(Post), String)))
+  GetState
 }
 
 pub fn handle_action(
@@ -121,7 +129,7 @@ pub fn handle_action(
         }
       }
     }
-    JoinSubReddit(subreddit_uuid, user_principal) -> {
+    JoinSubReddit(subreddit_uuid, user_principal, client) -> {
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
@@ -152,15 +160,17 @@ pub fn handle_action(
               subreddit_dict
             }
           }
+          actor.send(client, Ok("Joined Subreddit successfully."))
           actor.continue(Directory(..state, subreddits: updated_subreddit_dict))
         }
         _ -> {
           io.println("Invalid user.")
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
     }
-    LeaveSubReddit(subreddit_uuid, user_principal) -> {
+    LeaveSubReddit(subreddit_uuid, user_principal, client) -> {
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
@@ -191,10 +201,12 @@ pub fn handle_action(
               subreddit_dict
             }
           }
+          actor.send(client, Ok("Left Subreddit successfully"))
           actor.continue(Directory(..state, subreddits: updated_subreddit_dict))
         }
         _ -> {
           io.println("Invalid user.")
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
@@ -278,7 +290,7 @@ pub fn handle_action(
               let uuid = uuid.v4_string()
               let created_comment =
                 Comment(
-                  id: 1,
+                  id: comment_entity_cnt,
                   uuid: uuid,
                   author_id: user_id,
                   post_id: post_id,
@@ -314,7 +326,7 @@ pub fn handle_action(
         }
       }
     }
-    Vote(post_uuid, comment_uuid, up, down, user_principal) -> {
+    Vote(post_uuid, comment_uuid, up, down, user_principal, client) -> {
       let user_email = user_principal.email
       let users = state.users
       case dict.get(users, user_email) {
@@ -369,18 +381,23 @@ pub fn handle_action(
                 dict.insert(users, updated_user.email, updated_user)
               let updated_directory =
                 Directory(..updated_directory, users: updated_user_dict)
+              actor.send(client, Ok("Voted Successfully."))
               actor.continue(updated_directory)
             }
-            _ -> actor.continue(state)
+            _ -> {
+              actor.send(client, Error("Invalid Post."))
+              actor.continue(state)
+            }
           }
         }
         _ -> {
           io.println("Invalid user.")
+          actor.send(client, Error("Invalid User"))
           actor.continue(state)
         }
       }
     }
-    GetFeed(user_principal) -> {
+    GetFeed(user_principal, client) -> {
       let user_email = user_principal.email
       let users = state.users
       case dict.get(users, user_email) {
@@ -406,7 +423,7 @@ pub fn handle_action(
             })
 
           let user_dto_posts =
-            list.map(posts_list, fn(post) {
+            list.map(user_posts, fn(post) {
               let post_comments =
                 list.filter(comments_list, fn(comment) {
                   comment.post_id == post.id
@@ -414,12 +431,22 @@ pub fn handle_action(
               let comment_tree = helpers.build_comment_tree(post_comments)
               Post(..post, comments: Some(comment_tree))
             })
+          actor.send(client, Ok(user_dto_posts))
           actor.continue(state)
         }
         _ -> {
+          actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
       }
+    }
+    GetState -> {
+      echo state.users
+      echo state.subreddits
+      echo state.posts
+      echo state.comments
+      echo state.entities
+      actor.continue(state)
     }
   }
 }

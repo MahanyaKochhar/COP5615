@@ -10,11 +10,9 @@ import models.{type Comment, type CommentWithChildren, CommentWithChildren}
 pub fn build_comment_tree(comments: List(Comment)) -> List(CommentWithChildren) {
   // Group comments by parent_id for O(1) lookup
   let children_map = group_by_parent(comments)
-
   // Find root comments (those with no parent)
   let root_comments =
     list.filter(comments, fn(c) { c.parent_comment_id == None })
-
   // Build tree recursively for each root comment
   list.map(root_comments, fn(root) { build_tree(root, children_map) })
 }
@@ -41,7 +39,6 @@ fn build_tree(
   let direct_children =
     dict.get(children_map, comment.id)
     |> result.unwrap([])
-
   case direct_children {
     [] -> CommentWithChildren(comment, [])
     _ -> {
