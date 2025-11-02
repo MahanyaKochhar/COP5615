@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/erlang/process
 import gleam/option.{type Option}
 
 pub type UserPrincipal {
