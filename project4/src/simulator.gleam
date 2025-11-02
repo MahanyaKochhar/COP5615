@@ -10,7 +10,7 @@ import gleam/otp/actor
 
 const call_milliseconds = 5000
 
-pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
+pub fn simulate_root_user(client_subject: process.Subject(engine.Request)) {
   let dict = dict.new()
   let email = "kochharm@ufl.edu"
   let password = "kochharm"
@@ -19,7 +19,7 @@ pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
   let comment_name = "Deadline for Project 2 is Nov 2 midnight."
   let child_comment_name = "Please use Gleam and the actor model only."
   let email =
-    actor.call(client_subject, call_milliseconds, clients.Register(
+    actor.call(client_subject, call_milliseconds, engine.RegisterClient(
       email,
       password,
       _,
@@ -28,19 +28,20 @@ pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
   let updated_dict = case email {
     Ok(email) -> {
       let subreddit_uuid =
-        actor.call(client_subject, call_milliseconds, clients.CreateSubReddit(
-          subreddit_name,
-          _,
-        ))
+        actor.call(
+          client_subject,
+          call_milliseconds,
+          engine.CreateSubRedditClient(subreddit_name, _),
+        )
       case subreddit_uuid {
         Ok(subreddit_uuid) -> {
           let updated_dict = dict.insert(dict, "subreddit_uuid", subreddit_uuid)
           let post_uuid =
-            actor.call(client_subject, call_milliseconds, clients.CreatePost(
-              subreddit_uuid,
-              post_name,
-              _,
-            ))
+            actor.call(
+              client_subject,
+              call_milliseconds,
+              engine.CreatePostClient(subreddit_uuid, post_name, _),
+            )
           let updated_dict = case post_uuid {
             Ok(post_uuid) -> {
               let updated_dict =
@@ -49,7 +50,7 @@ pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
                 actor.call(
                   client_subject,
                   call_milliseconds,
-                  clients.CreateComment(post_uuid, None, comment_name, _),
+                  engine.CreateCommentClient(post_uuid, None, comment_name, _),
                 )
               let updated_dict = case comment_uuid {
                 Ok(comment_uuid) -> {
@@ -59,7 +60,7 @@ pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
                     actor.call(
                       client_subject,
                       call_milliseconds,
-                      clients.CreateComment(
+                      engine.CreateCommentClient(
                         post_uuid,
                         Some(comment_uuid),
                         child_comment_name,
@@ -103,7 +104,7 @@ pub fn simulate_root_user(client_subject: process.Subject(clients.Request)) {
 }
 
 pub fn create_subreddits(
-  user_subjects: List(process.Subject(clients.Request)),
+  user_subjects: List(process.Subject(engine.Request)),
   subreddits: Int,
 ) {
   let subreddit_names =
@@ -114,10 +115,11 @@ pub fn create_subreddits(
   let subreddit_uuids =
     list.map2(user_subjects, subreddit_names, fn(user_subject, subreddit_name) {
       let assert Ok(subreddit_uuid) =
-        actor.call(user_subject, call_milliseconds, clients.CreateSubReddit(
-          subreddit_name,
-          _,
-        ))
+        actor.call(
+          user_subject,
+          call_milliseconds,
+          engine.CreateSubRedditClient(subreddit_name, _),
+        )
       subreddit_uuid
     })
   subreddit_uuids
@@ -137,7 +139,7 @@ pub fn simulate_users(
       let password = "Simulated User " <> int.to_string(no) <> " Password"
       let user_subject = user_actor.data
       let email =
-        actor.call(user_subject, call_milliseconds, clients.Register(
+        actor.call(user_subject, call_milliseconds, engine.RegisterClient(
           email,
           password,
           _,

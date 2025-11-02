@@ -54,12 +54,23 @@ pub type CommentTree {
   CommentTree(comment: Comment, children: List(CommentTree))
 }
 
+pub type Message {
+  Message(
+    id: Int,
+    uuid: String,
+    sender_id: Int,
+    recipient_id: Int,
+    body: String,
+  )
+}
+
 pub type Directory {
   Directory(
     users: Dict(String, User),
     subreddits: Dict(String, SubReddit),
     posts: Dict(String, Post),
     comments: Dict(String, Comment),
+    messages: Dict(String, Message),
     entities: Dict(Entity, Int),
   )
 }
@@ -69,4 +80,5 @@ pub type Entity {
   SubRedditEntity
   PostEntity
   CommentEntity
+  MessageEntity
 }

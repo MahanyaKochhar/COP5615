@@ -10,10 +10,39 @@ import gleam/result
 import helpers
 import models.{
   type Comment, type Directory, type Entity, type Post, type SubReddit,
-  type User, type UserPrincipal, Comment, CommentEntity, Directory, Post,
-  PostEntity, SubReddit, SubRedditEntity, User, UserEntity, UserPrincipal,
+  type User, type UserPrincipal, Comment, CommentEntity, Directory, Message,
+  MessageEntity, Post, PostEntity, SubReddit, SubRedditEntity, User, UserEntity,
+  UserPrincipal,
 }
 import youid/uuid
+
+pub type Request {
+  RegisterClient(String, String, process.Subject(Result(String, String)))
+  CreateSubRedditClient(String, process.Subject(Result(String, String)))
+  JoinSubRedditClient(String, process.Subject(Result(String, String)))
+  LeaveSubRedditClient(String, process.Subject(Result(String, String)))
+  CreatePostClient(String, String, process.Subject(Result(String, String)))
+  CreateCommentClient(
+    String,
+    Option(String),
+    String,
+    process.Subject(Result(String, String)),
+  )
+  VoteClient(
+    String,
+    Option(String),
+    Int,
+    Int,
+    process.Subject(Result(String, String)),
+  )
+  GetFeedClient(process.Subject(Result(List(models.Post), String)))
+  ReceiveMessageClient(
+    process.Subject(Request),
+    process.Subject(Request),
+    String,
+    String,
+  )
+}
 
 pub type Action {
   RegisterUser(String, String, process.Subject(Result(String, String)))
@@ -46,6 +75,13 @@ pub type Action {
     process.Subject(Result(String, String)),
   )
   GetFeed(UserPrincipal, process.Subject(Result(List(Post), String)))
+  SendMessage(
+    String,
+    process.Subject(Request),
+    process.Subject(Request),
+    String,
+    UserPrincipal,
+  )
   GetState
 }
 
@@ -438,6 +474,63 @@ pub fn handle_action(
           actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
+      }
+    }
+    SendMessage(
+      recipient_email,
+      sender_subject,
+      recipient_subject,
+      body,
+      user_principal,
+    ) -> {
+      let email = user_principal.email
+      let user_dict = state.users
+      let message_dict = state.messages
+      let entity_dict = state.entities
+      case dict.get(user_dict, email) {
+        Ok(user) -> {
+          let user_id = user.id
+          let updated_directory = case dict.get(user_dict, recipient_email) {
+            Ok(recipient_user) -> {
+              let id = recipient_user.id
+              let uuid = uuid.v4_string()
+              let message_entity_cnt =
+                dict.get(entity_dict, MessageEntity) |> result.unwrap(1)
+              let created_message =
+                Message(
+                  id: message_entity_cnt,
+                  uuid: uuid,
+                  sender_id: user_id,
+                  recipient_id: id,
+                  body: body,
+                )
+              let updated_message_dict =
+                dict.insert(message_dict, uuid, created_message)
+              let updated_entity_dict =
+                dict.insert(entity_dict, MessageEntity, message_entity_cnt + 1)
+              actor.send(
+                recipient_subject,
+                ReceiveMessageClient(
+                  sender_subject,
+                  recipient_subject,
+                  email,
+                  body,
+                ),
+              )
+              let updated_directory =
+                Directory(
+                  ..state,
+                  messages: updated_message_dict,
+                  entities: updated_entity_dict,
+                )
+            }
+            _ -> {
+              state
+            }
+          }
+          actor.continue(updated_directory)
+        }
+        _ -> actor.continue(state)
       }
     }
     GetState -> {

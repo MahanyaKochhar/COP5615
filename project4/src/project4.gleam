@@ -23,7 +23,14 @@ pub fn main() -> Nil {
   }
 
   let base_directory =
-    Directory(dict.new(), dict.new(), dict.new(), dict.new(), dict.new())
+    Directory(
+      dict.new(),
+      dict.new(),
+      dict.new(),
+      dict.new(),
+      dict.new(),
+      dict.new(),
+    )
   let assert Ok(engine_actor) =
     actor.new(base_directory) |> actor.on_message(handle_action) |> actor.start
   let engine_subject = engine_actor.data
