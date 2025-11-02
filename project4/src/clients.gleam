@@ -1,6 +1,7 @@
 import engine.{
   type Action, type Request, CreateCommentClient, CreatePostClient,
-  CreateSubRedditClient, GetFeedClient, JoinSubRedditClient,
+  CreateSubRedditClient, GetAvailablePostsandCommentsClient,
+  GetAvailableSubredditsClient, GetFeedClient, JoinSubRedditClient,
   LeaveSubRedditClient, ReceiveMessageClient, RegisterClient, VoteClient,
 }
 import gleam/erlang/process
@@ -11,9 +12,9 @@ import models
 const call_milliseconds = 5000
 
 pub fn handle_request(
-  state: #(process.Subject(Action), String),
+  state: #(process.Subject(Action), String, Float),
   request: Request,
-) -> actor.Next(#(process.Subject(Action), String), Request) {
+) -> actor.Next(#(process.Subject(Action), String, Float), Request) {
   let engine = state.0
   let authenticated_email = state.1
   case request {
@@ -26,8 +27,8 @@ pub fn handle_request(
         ))
       actor.send(client, result)
       let updated_state = case result {
-        Ok(result) -> #(state.0, result)
-        Error(result) -> #(state.0, state.1)
+        Ok(result) -> #(state.0, result, state.2)
+        Error(result) -> #(state.0, state.1, state.2)
       }
       actor.continue(updated_state)
     }
@@ -117,6 +118,22 @@ pub fn handle_request(
           models.UserPrincipal(email: authenticated_email),
         ),
       )
+      actor.continue(state)
+    }
+    GetAvailableSubredditsClient(client) -> {
+      let result =
+        actor.call(engine, call_milliseconds, engine.GetAvailableSubreddits)
+      actor.send(client, result)
+      actor.continue(state)
+    }
+    GetAvailablePostsandCommentsClient(client) -> {
+      let result =
+        actor.call(
+          engine,
+          call_milliseconds,
+          engine.GetAvailablePostsandComments,
+        )
+      actor.send(client, result)
       actor.continue(state)
     }
   }

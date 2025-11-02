@@ -42,6 +42,10 @@ pub type Request {
     String,
     String,
   )
+  GetAvailableSubredditsClient(process.Subject(List(String)))
+  GetAvailablePostsandCommentsClient(
+    process.Subject(List(#(String, List(String)))),
+  )
 }
 
 pub type Action {
@@ -82,6 +86,8 @@ pub type Action {
     String,
     UserPrincipal,
   )
+  GetAvailableSubreddits(process.Subject(List(String)))
+  GetAvailablePostsandComments(process.Subject(List(#(String, List(String)))))
   GetState
 }
 
@@ -532,6 +538,26 @@ pub fn handle_action(
         }
         _ -> actor.continue(state)
       }
+    }
+    GetAvailablePostsandComments(client) -> {
+      let posts_dict = state.posts
+      let post_uuids = dict.keys(posts_dict)
+      let comments = dict.values(state.comments)
+      let post_comments =
+        list.map(post_uuids, fn(post_uuid) {
+          let assert Ok(post) = dict.get(posts_dict, post_uuid)
+          let filtered_comments =
+            list.filter(comments, fn(comment) { comment.post_id == post.id })
+            |> list.map(fn(comment) { comment.uuid })
+          #(post_uuid, filtered_comments)
+        })
+      actor.send(client, post_comments)
+      actor.continue(state)
+    }
+    GetAvailableSubreddits(client) -> {
+      let subreddits = dict.keys(state.subreddits)
+      actor.send(client, subreddits)
+      actor.continue(state)
     }
     GetState -> {
       echo state.users
