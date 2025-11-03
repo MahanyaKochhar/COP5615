@@ -262,6 +262,7 @@ pub fn simulate_activity(
       None
     }
     False -> {
+      process.sleep(1000)
       let assert Ok(random_user_subject) =
         list.sample(user_subjects, 1) |> list.first
       let generator = random.int(0, 200)
