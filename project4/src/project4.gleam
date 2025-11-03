@@ -6,7 +6,6 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/time/timestamp
@@ -51,8 +50,48 @@ pub fn main() -> Nil {
   let user_subjects = list.append(user_subjects, [root_subject])
   let subreddit_uuids = simulator.create_subreddits(user_subjects, inputs.1)
   simulator.join_subreddits_zipf_distribution(user_subjects, subreddit_uuids)
+  io.println("Simulation Begins.")
+  simulator.simulate_activity(user_subjects, start_time, False)
+  let metrics = actor.call(engine_subject, 5000, engine.GetMetrics)
 
-  actor.send(engine_subject, engine.GetState)
-  process.sleep(5000)
+  io.println("Performance Metrics: -> ")
+
+  let subreddit_metrics = metrics.subreddit_metrics
+  list.each(subreddit_metrics, fn(subreddit_metric) {
+    let uuid = subreddit_metric.uuid
+    let user_cnt = subreddit_metric.user_cnt
+    let posts_cnt = subreddit_metric.posts_cnt
+    let comments_cnt = subreddit_metric.comments_cnt
+    io.println("Subreddit metrics for subreddit with uuid: " <> uuid)
+    io.println(
+      "Users : "
+      <> int.to_string(user_cnt)
+      <> " Posts: "
+      <> int.to_string(posts_cnt)
+      <> " Comments : "
+      <> int.to_string(comments_cnt),
+    )
+  })
+
+  io.println("Overall Results among all subreddits:")
+  io.println(
+    "User "
+    <> metrics.user_with_max_posts.0
+    <> " has maximum posts "
+    <> int.to_string(metrics.user_with_max_posts.1),
+  )
+  io.println(
+    "User "
+    <> metrics.user_with_max_comments.0
+    <> " has maximum comments "
+    <> int.to_string(metrics.user_with_max_comments.1),
+  )
+  io.println(
+    "Post "
+    <> metrics.post_with_max_vote_cnt.0
+    <> " has maximum votes "
+    <> int.to_string(metrics.post_with_max_vote_cnt.1),
+  )
+
   Nil
 }

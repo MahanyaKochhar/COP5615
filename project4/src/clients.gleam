@@ -1,11 +1,11 @@
 import engine.{
   type Action, type Request, CreateCommentClient, CreatePostClient,
   CreateSubRedditClient, GetAvailablePostsandCommentsClient,
-  GetAvailableSubredditsClient, GetFeedClient, JoinSubRedditClient,
-  LeaveSubRedditClient, ReceiveMessageClient, RegisterClient, VoteClient,
+  GetAvailableSubredditsClient, GetFeedClient, GetTTLInfoClient,
+  JoinSubRedditClient, LeaveSubRedditClient, ReceiveMessageClient,
+  RegisterClient, VoteClient,
 }
 import gleam/erlang/process
-import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import models
 
@@ -28,7 +28,7 @@ pub fn handle_request(
       actor.send(client, result)
       let updated_state = case result {
         Ok(result) -> #(state.0, result, state.2)
-        Error(result) -> #(state.0, state.1, state.2)
+        Error(_result_) -> #(state.0, state.1, state.2)
       }
       actor.continue(updated_state)
     }
@@ -134,6 +134,10 @@ pub fn handle_request(
           engine.GetAvailablePostsandComments,
         )
       actor.send(client, result)
+      actor.continue(state)
+    }
+    GetTTLInfoClient(client) -> {
+      actor.send(client, state.2)
       actor.continue(state)
     }
   }

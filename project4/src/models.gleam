@@ -1,5 +1,4 @@
 import gleam/dict.{type Dict}
-import gleam/erlang/process
 import gleam/option.{type Option}
 
 pub type UserPrincipal {
@@ -61,6 +60,24 @@ pub type Message {
     sender_id: Int,
     recipient_id: Int,
     body: String,
+  )
+}
+
+pub type Metrics {
+  Metrics(
+    subreddit_metrics: List(SubRedditMetrics),
+    post_with_max_vote_cnt: #(String, Int),
+    user_with_max_posts: #(String, Int),
+    user_with_max_comments: #(String, Int),
+  )
+}
+
+pub type SubRedditMetrics {
+  SubRedditMetrics(
+    uuid: String,
+    user_cnt: Int,
+    posts_cnt: Int,
+    comments_cnt: Int,
   )
 }
 

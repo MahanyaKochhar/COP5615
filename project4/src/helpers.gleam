@@ -1,6 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/list
-import gleam/option.{type Option, None, Some}
+import gleam/option.{None, Some}
 import gleam/result
 import models.{type Comment, type CommentWithChildren, CommentWithChildren}
 

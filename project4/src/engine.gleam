@@ -2,6 +2,7 @@ import gleam/bit_array
 import gleam/crypto
 import gleam/dict.{type Dict}
 import gleam/erlang/process
+import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -9,10 +10,9 @@ import gleam/otp/actor
 import gleam/result
 import helpers
 import models.{
-  type Comment, type Directory, type Entity, type Post, type SubReddit,
-  type User, type UserPrincipal, Comment, CommentEntity, Directory, Message,
-  MessageEntity, Post, PostEntity, SubReddit, SubRedditEntity, User, UserEntity,
-  UserPrincipal,
+  type Directory, type Post, type UserPrincipal, Comment, CommentEntity,
+  Directory, Message, MessageEntity, Metrics, Post, PostEntity, SubReddit,
+  SubRedditEntity, SubRedditMetrics, User, UserEntity,
 }
 import youid/uuid
 
@@ -46,6 +46,7 @@ pub type Request {
   GetAvailablePostsandCommentsClient(
     process.Subject(List(#(String, List(String)))),
   )
+  GetTTLInfoClient(process.Subject(Float))
 }
 
 pub type Action {
@@ -88,6 +89,7 @@ pub type Action {
   )
   GetAvailableSubreddits(process.Subject(List(String)))
   GetAvailablePostsandComments(process.Subject(List(#(String, List(String)))))
+  GetMetrics(process.Subject(models.Metrics))
   GetState
 }
 
@@ -557,6 +559,84 @@ pub fn handle_action(
     GetAvailableSubreddits(client) -> {
       let subreddits = dict.keys(state.subreddits)
       actor.send(client, subreddits)
+      actor.continue(state)
+    }
+    GetMetrics(client) -> {
+      let users = state.users
+      let subreddits = state.subreddits
+      let posts = state.posts
+      let comments = state.comments
+      let subreddit_list = dict.values(subreddits)
+      let posts_list = dict.values(posts)
+      let comments_list = dict.values(comments)
+      let users_list = dict.values(state.users)
+      let subreddit_metrics =
+        list.map(subreddit_list, fn(subreddit) {
+          let user_cnt = list.length(subreddit.users)
+          let subreddit_posts =
+            list.filter_map(posts_list, fn(post) {
+              case post.subreddit_id == subreddit.id {
+                True -> Ok(post.id)
+                False -> Error(Nil)
+              }
+            })
+          let subreddit_comments =
+            list.filter(comments_list, fn(comment) {
+              list.contains(subreddit_posts, comment.post_id)
+            })
+          SubRedditMetrics(
+            uuid: subreddit.uuid,
+            user_cnt: user_cnt,
+            posts_cnt: list.length(subreddit_posts),
+            comments_cnt: list.length(subreddit_comments),
+          )
+        })
+      let assert Ok(post_with_max_vote_cnt) =
+        list.map(posts_list, fn(post) {
+          #(post.uuid, post.upvote + int.absolute_value(post.downvote))
+        })
+        |> list.reduce(fn(acc, current) {
+          case current.1 > acc.1 {
+            True -> current
+            False -> acc
+          }
+        })
+
+      let assert Ok(user_with_max_posts) =
+        list.map(users_list, fn(user) {
+          let user_posts =
+            list.filter(posts_list, fn(post) { post.author_id == user.id })
+          #(user.uuid, list.length(user_posts))
+        })
+        |> list.reduce(fn(acc, current) {
+          case current.1 > acc.1 {
+            True -> current
+            False -> acc
+          }
+        })
+
+      let assert Ok(user_with_max_comments) =
+        list.map(users_list, fn(user) {
+          let user_comments =
+            list.filter(comments_list, fn(comment) {
+              comment.author_id == user.id
+            })
+          #(user.uuid, list.length(user_comments))
+        })
+        |> list.reduce(fn(acc, current) {
+          case current.1 > acc.1 {
+            True -> current
+            False -> acc
+          }
+        })
+      let metrics =
+        Metrics(
+          subreddit_metrics: subreddit_metrics,
+          post_with_max_vote_cnt: post_with_max_vote_cnt,
+          user_with_max_posts: user_with_max_posts,
+          user_with_max_comments: user_with_max_comments,
+        )
+      actor.send(client, metrics)
       actor.continue(state)
     }
     GetState -> {
