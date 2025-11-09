@@ -1,4 +1,10 @@
+import engine
+import gleam/erlang/process
 import wisp
+
+pub type Context {
+  Context(engine: process.Subject(engine.Action))
+}
 
 pub fn middleware(
   req: wisp.Request,

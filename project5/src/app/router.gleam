@@ -1,12 +1,12 @@
+import app/controller
 import app/web
 import gleam/http.{Get, Post}
 import wisp.{type Request, type Response}
 
 pub fn handle_request(req: Request) -> Response {
   use req <- web.middleware(req)
-
   case wisp.path_segments(req) {
-    ["api", "user"] -> home_page(req)
+    ["api", "user"] -> register_user(req)
     ["api", "subreddit"] -> home_page(req)
     // ["comments"] -> comments(req)
     // ["comments", id] -> show_comment(req, id)
@@ -14,8 +14,13 @@ pub fn handle_request(req: Request) -> Response {
   }
 }
 
+fn register_user(req: Request) {
+  use <- wisp.require_method(req, Post)
+  controller.register_user(req)
+}
+
 fn home_page(req: Request) -> Response {
-  use <- wisp.require_method(req, Get)
+  use <- wisp.require_method(req, Post)
 
   wisp.ok()
   |> wisp.html_body("Hello, Mahanya")

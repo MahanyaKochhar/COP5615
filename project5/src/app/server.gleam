@@ -14,7 +14,7 @@ pub fn start() {
   |> dot_env.load
 
   let assert Ok(secret_key_base) = env.get_string("SECRET_KEY_BASE")
-
+  let ctx = Context(engine:)
   let assert Ok(_) =
     wisp_mist.handler(router.handle_request, secret_key_base)
     |> mist.new
