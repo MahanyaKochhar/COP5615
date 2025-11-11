@@ -19,6 +19,5 @@ pub fn middleware(
   use req <- wisp.handle_head(req)
 
   use req <- wisp.csrf_known_header_protection(req)
-
   handle_request(req)
 }

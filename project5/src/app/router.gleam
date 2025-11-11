@@ -1,22 +1,42 @@
 import app/controller
-import app/web
+import app/web.{type Context}
+import engine
+import gleam/erlang/process
 import gleam/http.{Get, Post}
+import gleam/http/request
 import wisp.{type Request, type Response}
 
-pub fn handle_request(req: Request) -> Response {
+pub fn handle_request(req: Request, ctx: Context) -> Response {
   use req <- web.middleware(req)
+  let user_email = request.get_header(req, "x-email")
   case wisp.path_segments(req) {
-    ["api", "user"] -> register_user(req)
-    ["api", "subreddit"] -> home_page(req)
+    ["api", "user"] -> register_user(req, ctx.engine)
+    ["api", "subreddit"] -> subreddit(req, ctx.engine, user_email)
     // ["comments"] -> comments(req)
     // ["comments", id] -> show_comment(req, id)
     _ -> wisp.not_found()
   }
 }
 
-fn register_user(req: Request) {
+fn register_user(req: Request, engine: process.Subject(engine.Action)) {
   use <- wisp.require_method(req, Post)
-  controller.register_user(req)
+  controller.register_user(req, engine)
+}
+
+fn subreddit(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: Result(String, Nil),
+) {
+  use <- wisp.require_method(req, Post)
+  case user_email {
+    Ok(user_email) -> {
+      controller.create_subreddit(req, engine, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
 }
 
 fn home_page(req: Request) -> Response {
