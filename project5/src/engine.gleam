@@ -184,7 +184,7 @@ pub fn handle_action(
           {
             Ok(subreddit) -> {
               let users = subreddit.users
-              case list.contains(users, user_id) {
+              let subreddit_dict = case list.contains(users, user_id) {
                 True -> {
                   subreddit_dict
                 }
@@ -199,16 +199,18 @@ pub fn handle_action(
                   )
                 }
               }
+              actor.send(client, Ok("Joined Subreddit successfully."))
+              subreddit_dict
             }
             _ -> {
+              actor.send(client, Error("Subreddit does not exist."))
               subreddit_dict
             }
           }
-          actor.send(client, Ok("Joined Subreddit successfully."))
+
           actor.continue(Directory(..state, subreddits: updated_subreddit_dict))
         }
         _ -> {
-          io.println("Invalid user.")
           actor.send(client, Error("Invalid User."))
           actor.continue(state)
         }
@@ -225,7 +227,7 @@ pub fn handle_action(
           {
             Ok(subreddit) -> {
               let users = subreddit.users
-              case list.contains(users, user_id) {
+              let subreddit_dict = case list.contains(users, user_id) {
                 True -> {
                   let upd_user_list =
                     list.filter(users, fn(id) { id != user_id })
@@ -240,12 +242,14 @@ pub fn handle_action(
                 }
                 False -> subreddit_dict
               }
+              actor.send(client, Ok("Left Subreddit successfully"))
+              subreddit_dict
             }
             _ -> {
+              actor.send(client, Error("Subreddit does not exist."))
               subreddit_dict
             }
           }
-          actor.send(client, Ok("Left Subreddit successfully"))
           actor.continue(Directory(..state, subreddits: updated_subreddit_dict))
         }
         _ -> {

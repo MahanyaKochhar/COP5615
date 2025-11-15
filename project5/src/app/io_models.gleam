@@ -9,7 +9,7 @@ pub type Subreddit {
 }
 
 pub type UserResponse {
-  UserResponse(success: Bool, status: String)
+  UserResponse(success: Bool, status: String, uuid: String)
 }
 
 pub type SubredditResponse {

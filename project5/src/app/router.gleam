@@ -2,7 +2,7 @@ import app/controller
 import app/web.{type Context}
 import engine
 import gleam/erlang/process
-import gleam/http.{Get, Post}
+import gleam/http.{Delete, Get, Post}
 import gleam/http/request
 import wisp.{type Request, type Response}
 
@@ -12,6 +12,13 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   case wisp.path_segments(req) {
     ["api", "user"] -> register_user(req, ctx.engine)
     ["api", "subreddit"] -> subreddit(req, ctx.engine, user_email)
+    ["api", "user", user_id, "subreddit", subreddit_id] ->
+      handle_user_subreddit_membership(
+        req,
+        ctx.engine,
+        subreddit_id,
+        user_email,
+      )
     // ["comments"] -> comments(req)
     // ["comments", id] -> show_comment(req, id)
     _ -> wisp.not_found()
@@ -32,6 +39,27 @@ fn subreddit(
   case user_email {
     Ok(user_email) -> {
       controller.create_subreddit(req, engine, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
+}
+
+fn handle_user_subreddit_membership(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  subreddit_id: String,
+  user_email: Result(String, Nil),
+) {
+  case user_email {
+    Ok(user_email) -> {
+      case req.method {
+        Post -> controller.join_subreddit(req, engine, subreddit_id, user_email)
+        Delete ->
+          controller.leave_subreddit(req, engine, subreddit_id, user_email)
+        _ -> wisp.method_not_allowed([Post, Delete])
+      }
     }
     _ -> {
       wisp.response(401)
