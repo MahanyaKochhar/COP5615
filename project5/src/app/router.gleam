@@ -4,6 +4,7 @@ import engine
 import gleam/erlang/process
 import gleam/http.{Delete, Get, Post}
 import gleam/http/request
+import gleam/option.{None, Some}
 import wisp.{type Request, type Response}
 
 pub fn handle_request(req: Request, ctx: Context) -> Response {
@@ -19,8 +20,27 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
         subreddit_id,
         user_email,
       )
-    // ["comments"] -> comments(req)
-    // ["comments", id] -> show_comment(req, id)
+    ["api", "subreddit", subreddit_id, "post"] ->
+      create_post(req, ctx.engine, subreddit_id, user_email)
+    ["api", "post", post_id, "comment"] ->
+      create_comment(req, ctx.engine, post_id, option.None, user_email)
+    ["api", "post", post_id, "comment", comment_id] ->
+      create_comment(
+        req,
+        ctx.engine,
+        post_id,
+        option.Some(comment_id),
+        user_email,
+      )
+    ["api", "post", post_id, "comment", "vote"] -> {
+      vote(req, ctx.engine, post_id, None, user_email)
+    }
+    ["api", "post", post_id, "comment", comment_id, "vote"] -> {
+      vote(req, ctx.engine, post_id, Some(comment_id), user_email)
+    }
+    ["api", "user", "feed"] -> {
+      feed(req, ctx.engine, user_email)
+    }
     _ -> wisp.not_found()
   }
 }
@@ -67,33 +87,70 @@ fn handle_user_subreddit_membership(
   }
 }
 
-fn home_page(req: Request) -> Response {
+fn create_post(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  subreddit_id: String,
+  user_email: Result(String, Nil),
+) {
   use <- wisp.require_method(req, Post)
-
-  wisp.ok()
-  |> wisp.html_body("Hello, Mahanya")
+  case user_email {
+    Ok(user_email) -> {
+      controller.create_post(req, engine, subreddit_id, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
 }
-// fn comments(req: Request) -> Response {
-//   case req.method {
-//     Get -> list_comments()
-//     Post -> create_comment(req)
-//     _ -> wisp.method_not_allowed([Get, Post])
-//   }
-// }
 
-// fn list_comments() -> Response {
-//   wisp.ok()
-//   |> wisp.html_body("Comments!")
-// }
+fn create_comment(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  post_id: String,
+  comment_id: option.Option(String),
+  user_email: Result(String, Nil),
+) {
+  use <- wisp.require_method(req, Post)
+  case user_email {
+    Ok(user_email) -> {
+      controller.create_comment(req, engine, post_id, comment_id, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
+}
 
-// fn create_comment(_req: Request) -> Response {
-//   wisp.created()
-//   |> wisp.html_body("Created")
-// }
+fn vote(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  post_id: String,
+  comment_id: option.Option(String),
+  user_email: Result(String, Nil),
+) {
+  use <- wisp.require_method(req, Post)
+  case user_email {
+    Ok(user_email) -> {
+      controller.vote(req, engine, post_id, comment_id, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
+}
 
-// fn show_comment(req: Request, id: String) -> Response {
-//   use <- wisp.require_method(req, Get)
-
-//   wisp.ok()
-//   |> wisp.html_body("Comment with id " <> id)
-// }
+fn feed(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: Result(String, Nil),
+) {
+  case user_email {
+    Ok(user_email) -> {
+      controller.feed(req, engine, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import gleam/dynamic/decode
+import models
 
 pub type User {
   User(email: String, password: String)
@@ -12,8 +13,16 @@ pub type UserResponse {
   UserResponse(success: Bool, status: String, uuid: String)
 }
 
-pub type SubredditResponse {
-  SubredditResponse(success: Bool, uuid: String)
+pub type EntityResponse {
+  EntityResponse(success: Bool, entity: String, uuid: String)
+}
+
+pub type Body {
+  Body(body: String)
+}
+
+pub type Vote {
+  Vote(up: Int, down: Int)
 }
 
 pub fn user_decoder() -> decode.Decoder(User) {
@@ -25,4 +34,15 @@ pub fn user_decoder() -> decode.Decoder(User) {
 pub fn subreddit_decoder() -> decode.Decoder(Subreddit) {
   use name <- decode.field("name", decode.string)
   decode.success(Subreddit(name:))
+}
+
+pub fn body_decoder() -> decode.Decoder(Body) {
+  use body <- decode.field("body", decode.string)
+  decode.success(Body(body:))
+}
+
+pub fn vote_decoder() -> decode.Decoder(Vote) {
+  use up <- decode.field("up", decode.int)
+  use down <- decode.field("down", decode.int)
+  decode.success(Vote(up:, down:))
 }

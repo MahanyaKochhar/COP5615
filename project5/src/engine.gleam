@@ -111,10 +111,11 @@ pub fn handle_action(
         False -> {
           let user_entity_cnt =
             dict.get(entity_dict, UserEntity) |> result.unwrap(1)
+          let uuid = uuid.v4_string()
           let created_user =
             User(
               id: user_entity_cnt,
-              uuid: uuid.v4_string(),
+              uuid: uuid,
               email: email,
               password: crypto.hash(
                 crypto.Sha256,
@@ -125,7 +126,7 @@ pub fn handle_action(
           let updated_user_dict = dict.insert(user_dict, email, created_user)
           let updated_entity_dict =
             dict.insert(entity_dict, UserEntity, user_entity_cnt + 1)
-          actor.send(client, Ok(email))
+          actor.send(client, Ok(uuid))
           Directory(
             ..state,
             users: updated_user_dict,
@@ -174,6 +175,7 @@ pub fn handle_action(
       }
     }
     JoinSubReddit(subreddit_uuid, user_principal, client) -> {
+      echo state
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
@@ -217,6 +219,7 @@ pub fn handle_action(
       }
     }
     LeaveSubReddit(subreddit_uuid, user_principal, client) -> {
+      echo state
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
