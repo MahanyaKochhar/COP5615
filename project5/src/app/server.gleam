@@ -4,8 +4,9 @@ import dot_env
 import dot_env/env
 import engine
 import gleam/dict
+import gleam/http/request.{type Request}
 import gleam/otp/actor
-import mist
+import mist.{type Connection, type ResponseData}
 import models
 import wisp
 import wisp/wisp_mist
@@ -38,7 +39,14 @@ pub fn start() {
   let ctx = Context(engine: subject)
   let handler = router.handle_request(_, ctx)
   let assert Ok(_) =
-    wisp_mist.handler(handler, secret_key_base)
+    fn(req: Request(Connection)) {
+      case request.path_segments(req) {
+        ["ws"] -> {
+          todo
+        }
+        _ -> wisp_mist.handler(handler, secret_key_base)(req)
+      }
+    }
     |> mist.new
     |> mist.bind("0.0.0.0")
     |> mist.port(8000)
