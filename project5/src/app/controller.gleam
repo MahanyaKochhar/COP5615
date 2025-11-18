@@ -349,12 +349,18 @@ pub fn vote(
   }
 }
 
-fn comment1_to_json() {
-  todo
-}
-
 fn comment_to_json(comment: models.CommentWithChildren) {
-  json.object([#("comment")])
+  let comment_object =
+    json.object([
+      #("uuid", json.string(comment.comment.uuid)),
+      #("body", json.string(comment.comment.body)),
+      #("upvote", json.int(comment.comment.upvote)),
+      #("downvote", json.int(comment.comment.downvote)),
+    ])
+  json.object([
+    #("comment", comment_object),
+    #("children", json.array(comment.children, comment_to_json)),
+  ])
 }
 
 fn post_to_json(post: models.Post) {
