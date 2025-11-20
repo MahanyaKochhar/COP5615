@@ -59,7 +59,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   case wisp.path_segments(req) {
     ["api", "user"] -> register_user(req, ctx.engine)
     ["api", "subreddit"] -> subreddit(req, ctx.engine, user_email)
-    ["api", "user", user_id, "subreddit", subreddit_id] ->
+    ["api", "user", "subreddit", subreddit_id] ->
       handle_user_subreddit_membership(
         req,
         ctx.engine,
@@ -78,7 +78,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
         option.Some(comment_id),
         user_email,
       )
-    ["api", "post", post_id, "comment", "vote"] -> {
+    ["api", "post", post_id, "vote"] -> {
       vote(req, ctx.engine, post_id, None, user_email)
     }
     ["api", "post", post_id, "comment", comment_id, "vote"] -> {
@@ -191,6 +191,7 @@ fn feed(
   engine: process.Subject(engine.Action),
   user_email: Result(String, Nil),
 ) {
+  use <- wisp.require_method(req, Get)
   case user_email {
     Ok(user_email) -> {
       controller.feed(req, engine, user_email)

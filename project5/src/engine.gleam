@@ -177,7 +177,6 @@ pub fn handle_action(
       }
     }
     JoinSubReddit(subreddit_uuid, user_principal, client) -> {
-      echo state
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {
@@ -221,7 +220,6 @@ pub fn handle_action(
       }
     }
     LeaveSubReddit(subreddit_uuid, user_principal, client) -> {
-      echo state
       let user_email = user_principal.email
       case dict.get(state.users, user_email) {
         Ok(user) -> {

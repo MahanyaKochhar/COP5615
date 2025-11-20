@@ -11,6 +11,8 @@ import gleam/http/response
 import gleam/io
 import gleam/option.{None, Some}
 import gleam/otp/actor
+import gleam/string
+import logging
 import mist.{type Connection, type ResponseData}
 import models
 import wisp
@@ -45,6 +47,10 @@ pub fn start() {
   let handler = router.handle_request(_, ctx)
   let assert Ok(_) =
     fn(req: Request(Connection)) {
+      logging.log(
+        logging.Info,
+        "Got a request from: " <> string.inspect(mist.get_client_info(req.body)),
+      )
       case request.path_segments(req) {
         ["ws"] -> {
           case request.get_header(req, "x-email") {
@@ -57,9 +63,12 @@ pub fn start() {
                   let selector =
                     process.new_selector()
                     |> process.select(websocket_subject)
+                  logging.log(logging.Info, "Websocket Connection Complete.")
                   #(#(subject, email), Some(selector))
                 },
-                on_close: fn(_state) { io.println("goodbye!") },
+                on_close: fn(_state) {
+                  logging.log(logging.Info, "Websocket Connection Closed.")
+                },
                 handler: router.handle_ws_request,
               )
             }
