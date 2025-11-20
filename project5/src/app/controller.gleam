@@ -1,10 +1,12 @@
 import app/io_models
 import engine
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/json
 import gleam/option
 import gleam/otp/actor
+import mist
 import models
 import wisp.{type Request, type Response}
 
@@ -396,6 +398,40 @@ pub fn feed(
     }
     _ -> {
       wisp.response(403)
+    }
+  }
+}
+
+pub fn save_subject(
+  engine: process.Subject(engine.Action),
+  subject: process.Subject(models.MyMessage),
+  user_email: String,
+) {
+  actor.send(
+    engine,
+    engine.SaveSubject(subject, models.UserPrincipal(email: user_email)),
+  )
+}
+
+pub fn send_message(
+  engine: process.Subject(engine.Action),
+  msg: String,
+  user_email: String,
+) {
+  let message = json.parse(msg, io_models.message_decoder())
+  case message {
+    Ok(message) -> {
+      actor.send(
+        engine,
+        engine.SendMessage(
+          message.recipient,
+          message.body,
+          models.UserPrincipal(email: user_email),
+        ),
+      )
+    }
+    _ -> {
+      Nil
     }
   }
 }

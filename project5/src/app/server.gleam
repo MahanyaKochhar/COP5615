@@ -3,8 +3,13 @@ import app/web.{Context}
 import dot_env
 import dot_env/env
 import engine
+import gleam/bytes_tree
 import gleam/dict
+import gleam/erlang/process
 import gleam/http/request.{type Request}
+import gleam/http/response
+import gleam/io
+import gleam/option.{None, Some}
 import gleam/otp/actor
 import mist.{type Connection, type ResponseData}
 import models
@@ -42,7 +47,27 @@ pub fn start() {
     fn(req: Request(Connection)) {
       case request.path_segments(req) {
         ["ws"] -> {
-          todo
+          case request.get_header(req, "x-email") {
+            Ok(email) -> {
+              mist.websocket(
+                request: req,
+                on_init: fn(conn) {
+                  let websocket_subject = process.new_subject()
+                  router.save_subject(email, websocket_subject, subject)
+                  let selector =
+                    process.new_selector()
+                    |> process.select(websocket_subject)
+                  #(#(subject, email), Some(selector))
+                },
+                on_close: fn(_state) { io.println("goodbye!") },
+                handler: router.handle_ws_request,
+              )
+            }
+            _ -> {
+              response.new(401)
+              |> response.set_body(mist.Bytes(bytes_tree.new()))
+            }
+          }
         }
         _ -> wisp_mist.handler(handler, secret_key_base)(req)
       }

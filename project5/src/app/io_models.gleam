@@ -25,6 +25,10 @@ pub type Vote {
   Vote(up: Int, down: Int)
 }
 
+pub type Message {
+  Message(recipient: String, body: String)
+}
+
 pub fn user_decoder() -> decode.Decoder(User) {
   use email <- decode.field("email", decode.string)
   use password <- decode.field("password", decode.string)
@@ -45,4 +49,10 @@ pub fn vote_decoder() -> decode.Decoder(Vote) {
   use up <- decode.field("up", decode.int)
   use down <- decode.field("down", decode.int)
   decode.success(Vote(up:, down:))
+}
+
+pub fn message_decoder() -> decode.Decoder(Message) {
+  use recipient <- decode.field("recipient", decode.string)
+  use body <- decode.field("body", decode.string)
+  decode.success(Message(recipient:, body:))
 }

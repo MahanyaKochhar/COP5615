@@ -1,11 +1,57 @@
 import app/controller
+import app/io_models
 import app/web.{type Context}
 import engine
+import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/http.{Delete, Get, Post}
 import gleam/http/request
 import gleam/option.{None, Some}
+import mist
+import models.{Broadcast}
 import wisp.{type Request, type Response}
+
+pub fn handle_ws_request(
+  state: #(process.Subject(engine.Action), String),
+  message,
+  conn,
+) {
+  case message {
+    mist.Text("ping") -> {
+      let assert Ok(_) = mist.send_text_frame(conn, "pong")
+      mist.continue(state)
+    }
+    mist.Text(msg) -> {
+      send_message(state.1, msg, state.0)
+      mist.continue(state)
+    }
+    mist.Binary(msg) -> {
+      mist.continue(state)
+    }
+    mist.Custom(Broadcast(text)) -> {
+      let assert Ok(_) = mist.send_text_frame(conn, text)
+      mist.continue(state)
+    }
+    mist.Closed | mist.Shutdown -> mist.stop()
+  }
+}
+
+pub fn save_subject(
+  email: String,
+  subject: process.Subject(models.MyMessage),
+  engine: process.Subject(engine.Action),
+) {
+  controller.save_subject(engine, subject, email)
+}
+
+pub fn send_message(
+  email: String,
+  msg: String,
+  engine: process.Subject(engine.Action),
+) {
+  controller.send_message(engine, msg, email)
+}
 
 pub fn handle_request(req: Request, ctx: Context) -> Response {
   use req <- web.middleware(req)

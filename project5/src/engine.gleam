@@ -9,6 +9,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
 import helpers
+import mist
 import models.{
   type Directory, type Post, type UserPrincipal, Comment, CommentEntity,
   Directory, Message, MessageEntity, Metrics, Post, PostEntity, SubReddit,
@@ -16,38 +17,38 @@ import models.{
 }
 import youid/uuid
 
-pub type Request {
-  RegisterClient(String, String, process.Subject(Result(String, String)))
-  CreateSubRedditClient(String, process.Subject(Result(String, String)))
-  JoinSubRedditClient(String, process.Subject(Result(String, String)))
-  LeaveSubRedditClient(String, process.Subject(Result(String, String)))
-  CreatePostClient(String, String, process.Subject(Result(String, String)))
-  CreateCommentClient(
-    String,
-    Option(String),
-    String,
-    process.Subject(Result(String, String)),
-  )
-  VoteClient(
-    String,
-    Option(String),
-    Int,
-    Int,
-    process.Subject(Result(String, String)),
-  )
-  GetFeedClient(process.Subject(Result(List(models.Post), String)))
-  ReceiveMessageClient(
-    process.Subject(Request),
-    process.Subject(Request),
-    String,
-    String,
-  )
-  GetAvailableSubredditsClient(process.Subject(List(String)))
-  GetAvailablePostsandCommentsClient(
-    process.Subject(List(#(String, List(String)))),
-  )
-  GetTTLInfoClient(process.Subject(Float))
-}
+// pub type Request {
+//   RegisterClient(String, String, process.Subject(Result(String, String)))
+//   CreateSubRedditClient(String, process.Subject(Result(String, String)))
+//   JoinSubRedditClient(String, process.Subject(Result(String, String)))
+//   LeaveSubRedditClient(String, process.Subject(Result(String, String)))
+//   CreatePostClient(String, String, process.Subject(Result(String, String)))
+//   CreateCommentClient(
+//     String,
+//     Option(String),
+//     String,
+//     process.Subject(Result(String, String)),
+//   )
+//   VoteClient(
+//     String,
+//     Option(String),
+//     Int,
+//     Int,
+//     process.Subject(Result(String, String)),
+//   )
+//   GetFeedClient(process.Subject(Result(List(models.Post), String)))
+//   ReceiveMessageClient(
+//     process.Subject(Request),
+//     process.Subject(Request),
+//     String,
+//     String,
+//   )
+//   GetAvailableSubredditsClient(process.Subject(List(String)))
+//   GetAvailablePostsandCommentsClient(
+//     process.Subject(List(#(String, List(String)))),
+//   )
+//   GetTTLInfoClient(process.Subject(Float))
+// }
 
 pub type Action {
   RegisterUser(String, String, process.Subject(Result(String, String)))
@@ -80,12 +81,12 @@ pub type Action {
     process.Subject(Result(String, String)),
   )
   GetFeed(UserPrincipal, process.Subject(Result(List(Post), String)))
+  SaveSubject(process.Subject(models.MyMessage), UserPrincipal)
   SendMessage(
     String,
-    process.Subject(Request),
-    process.Subject(Request),
     String,
     UserPrincipal,
+    // process.Subject(Result(process.Subject(models.MyMessage), Nil)),
   )
   GetAvailableSubreddits(process.Subject(List(String)))
   GetAvailablePostsandComments(process.Subject(List(#(String, List(String)))))
@@ -122,6 +123,7 @@ pub fn handle_action(
                 bit_array.from_string(password),
               ),
               karma: 0,
+              websocket_subject: None,
             )
           let updated_user_dict = dict.insert(user_dict, email, created_user)
           let updated_entity_dict =
@@ -491,23 +493,33 @@ pub fn handle_action(
         }
       }
     }
-    SendMessage(
-      recipient_email,
-      sender_subject,
-      recipient_subject,
-      body,
-      user_principal,
-    ) -> {
-      let email = user_principal.email
-      let user_dict = state.users
-      let message_dict = state.messages
+    SaveSubject(subject, user_principal) -> {
+      let user_email = user_principal.email
+      let users = state.users
+      case dict.get(users, user_email) {
+        Ok(user) -> {
+          let updated_user = User(..user, websocket_subject: Some(subject))
+          let updated_user_dict = dict.insert(users, user_email, updated_user)
+          let updated_directory = Directory(..state, users: updated_user_dict)
+          actor.continue(updated_directory)
+        }
+        _ -> {
+          actor.continue(state)
+        }
+      }
+    }
+    SendMessage(recipient_email, body, user_principal) -> {
+      let user_email = user_principal.email
+      let users = state.users
       let entity_dict = state.entities
-      case dict.get(user_dict, email) {
+      let message_dict = state.messages
+      case dict.get(users, user_email) {
         Ok(user) -> {
           let user_id = user.id
-          let updated_directory = case dict.get(user_dict, recipient_email) {
+          let updated_directory = case dict.get(users, recipient_email) {
             Ok(recipient_user) -> {
               let id = recipient_user.id
+              let recipient_subject = recipient_user.websocket_subject
               let uuid = uuid.v4_string()
               let message_entity_cnt =
                 dict.get(entity_dict, MessageEntity) |> result.unwrap(1)
@@ -519,19 +531,19 @@ pub fn handle_action(
                   recipient_id: id,
                   body: body,
                 )
+              case recipient_subject {
+                Some(recipient_subject) -> {
+                  process.send(recipient_subject, models.Broadcast(body))
+                  Nil
+                }
+                _ -> {
+                  Nil
+                }
+              }
               let updated_message_dict =
                 dict.insert(message_dict, uuid, created_message)
               let updated_entity_dict =
                 dict.insert(entity_dict, MessageEntity, message_entity_cnt + 1)
-              actor.send(
-                recipient_subject,
-                ReceiveMessageClient(
-                  sender_subject,
-                  recipient_subject,
-                  email,
-                  body,
-                ),
-              )
               let updated_directory =
                 Directory(
                   ..state,
@@ -545,7 +557,9 @@ pub fn handle_action(
           }
           actor.continue(updated_directory)
         }
-        _ -> actor.continue(state)
+        _ -> {
+          actor.continue(state)
+        }
       }
     }
     GetAvailablePostsandComments(client) -> {

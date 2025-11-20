@@ -1,12 +1,25 @@
 import gleam/dict.{type Dict}
+import gleam/erlang/process
 import gleam/option.{type Option}
+import mist
+
+pub type MyMessage {
+  Broadcast(String)
+}
 
 pub type UserPrincipal {
   UserPrincipal(email: String)
 }
 
 pub type User {
-  User(id: Int, uuid: String, email: String, password: BitArray, karma: Int)
+  User(
+    id: Int,
+    uuid: String,
+    email: String,
+    password: BitArray,
+    karma: Int,
+    websocket_subject: Option(process.Subject(MyMessage)),
+  )
 }
 
 pub type SubReddit {
