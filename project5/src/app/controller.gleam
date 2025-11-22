@@ -94,7 +94,6 @@ pub fn create_subreddit(
               #("success", json.bool(subreddit_response.success)),
               #("uuid", json.string(subreddit_response.uuid)),
               #("entity", json.string(subreddit_response.entity)),
-              #("name", json.string(subreddit.name)),
             ])
             |> json.to_string()
           wisp.json_response(response, 201)

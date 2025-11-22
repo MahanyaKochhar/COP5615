@@ -55,3 +55,17 @@ pub fn message_decoder() -> decode.Decoder(Message) {
   use body <- decode.field("body", decode.string)
   decode.success(Message(recipient:, body:))
 }
+
+pub fn user_response_decoder() -> decode.Decoder(UserResponse) {
+  use success <- decode.field("success", decode.bool)
+  use status <- decode.field("status", decode.string)
+  use uuid <- decode.field("uuid", decode.string)
+  decode.success(UserResponse(success: success, status: status, uuid: uuid))
+}
+
+pub fn entity_response_decoder() -> decode.Decoder(EntityResponse) {
+  use success <- decode.field("success", decode.bool)
+  use entity <- decode.field("entity", decode.string)
+  use uuid <- decode.field("uuid", decode.string)
+  decode.success(EntityResponse(success: success, entity: entity, uuid: uuid))
+}
