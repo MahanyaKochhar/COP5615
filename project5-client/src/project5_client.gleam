@@ -9,6 +9,7 @@ import gleam/option.{None, Some}
 import gleam/result
 import io_models
 import logging
+import prng/random
 import requests
 
 pub fn main() -> Nil {
@@ -51,55 +52,75 @@ pub fn main() -> Nil {
         user3_email,
         requests.Join,
       )
-      let post_ids =
-        list.map(posts, fn(post) {
-          requests.create_post(subreddit_id, post, user1_email)
-        })
       let filtered_post_ids =
-        list.filter_map(post_ids, fn(post_id) {
-          let status = case post_id {
+        list.filter_map(posts, fn(post) {
+          let post_id = requests.create_post(subreddit_id, post, user1_email)
+          case post_id {
             Some(post_id) -> Ok(#(post_id, None))
             None -> Error(Nil)
           }
         })
-
-      let comment_ids =
-        list.map(filtered_post_ids, fn(post_id) {
+      let filtered_comment_ids =
+        list.filter_map(filtered_post_ids, fn(post_comment_id) {
           let assert Ok(comment) = list.sample(random_comments, 1) |> list.first
           let assert Ok(sampled_user) = list.sample(users, 1) |> list.first
-          requests.create_comment(post_id, None, comment, sampled_user)
-        })
-
-      let post_comment_ids =
-        list.map2(
-          filtered_post_ids,
-          comment_ids,
-          fn(filtered_post_id, comment_id) {
-            let status = case comment_id {
-              Some(comment_id) -> Ok(#(filtered_post_id, comment_id))
-              None -> Error(Nil)
-            }
-          },
-        )
-
-      let filtered_post_comment_ids =
-        list.filter_map(post_comment_ids, fn(post_comment_id) {
-          case post_comment_id {
-            Ok(post_comment_id) -> Ok(post_comment_id)
+          let comment_id =
+            requests.create_comment(
+              post_comment_id.0,
+              None,
+              comment,
+              sampled_user,
+            )
+          case comment_id {
+            Some(comment_id) -> Ok(#(post_comment_id.0, Some(comment_id)))
             _ -> Error(Nil)
           }
         })
 
-      list.map(filtered_post_comment_ids, fn(post_comment_id) {
-        let assert Ok(comment) = list.sample(random_comments, 1) |> list.first
-        requests.create_comment(
-          post_comment_id.0,
-          Some(post_comment_id.1),
-          comment,
-          sampled_user,
-        )
+      let more_filtered_comment_ids =
+        list.filter_map(filtered_comment_ids, fn(post_comment_id) {
+          let assert Ok(comment) = list.sample(random_comments, 1) |> list.first
+          let comment_id =
+            requests.create_comment(
+              post_comment_id.0,
+              post_comment_id.1,
+              comment,
+              sampled_user,
+            )
+          case comment_id {
+            Some(comment_id) -> Ok(#(post_comment_id.0, Some(comment_id)))
+            _ -> Error(Nil)
+          }
+        })
+
+      let all_posts_comments =
+        list.append(filtered_post_ids, filtered_comment_ids)
+        |> list.append(more_filtered_comment_ids)
+
+      let generator = random.int(0, 1)
+      list.range(1, 100)
+      |> list.map(fn(_no) {
+        let assert Ok(sampled_user) = list.sample(users, 1) |> list.first
+        let assert Ok(post_comment) =
+          list.sample(all_posts_comments, 1) |> list.first
+        let up = random.random_sample(generator)
+        let down = 1 - up
+        requests.vote(post_comment.0, post_comment.1, up, down, sampled_user)
       })
 
+      requests.user(user1_email)
+      requests.user(user2_email)
+      requests.user(user3_email)
+
+      requests.feed(user1_email)
+      requests.feed(user2_email)
+      requests.handle_subreddit_membership(
+        subreddit_id,
+        user3_email,
+        requests.Leave,
+      )
+      requests.feed(user3_email)
+      process.sleep(30_000)
       Nil
     }
     _ -> {

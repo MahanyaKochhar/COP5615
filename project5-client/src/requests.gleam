@@ -165,7 +165,8 @@ pub fn create_comment(
 pub fn vote(
   post_id: String,
   comment_id: option.Option(String),
-  body: String,
+  up: Int,
+  down: Int,
   email: String,
 ) {
   let path = case comment_id {
@@ -173,13 +174,16 @@ pub fn vote(
       "api/post/" <> post_id <> "/comment/" <> comment_id <> "/vote"
     _ -> "api/post/" <> post_id <> "/vote"
   }
-  let post = json.to_string(json.object([#("body", json.string(body))]))
+  let vote =
+    json.to_string(
+      json.object([#("up", json.int(up)), #("down", json.int(down))]),
+    )
   let resp =
     helpers.send_request(
       path,
       http.Post,
       list.append(headers, [#("x-email", email)]),
-      post,
+      vote,
     )
   case resp {
     Ok(resp) -> {
@@ -206,6 +210,27 @@ pub fn feed(email: String) {
     Ok(resp) -> {
       let body = resp.body
       logging.log(logging.Info, "Feed of User " <> email)
+      logging.log(logging.Info, body)
+    }
+    _ -> {
+      logging.log(logging.Error, "HTTPC Error")
+    }
+  }
+}
+
+pub fn user(email: String) {
+  let user = json.to_string(json.object([]))
+  let resp =
+    helpers.send_request(
+      "api/user",
+      http.Get,
+      list.append(headers, [#("x-email", email)]),
+      user,
+    )
+  case resp {
+    Ok(resp) -> {
+      let body = resp.body
+      logging.log(logging.Info, "User Profile " <> email)
       logging.log(logging.Info, body)
     }
     _ -> {

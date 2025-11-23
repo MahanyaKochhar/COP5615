@@ -9,7 +9,6 @@ import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
 import helpers
-import mist
 import models.{
   type Directory, type Post, type UserPrincipal, Comment, CommentEntity,
   Directory, Message, MessageEntity, Metrics, Post, PostEntity, SubReddit,
@@ -81,6 +80,8 @@ pub type Action {
     process.Subject(Result(String, String)),
   )
   GetFeed(UserPrincipal, process.Subject(Result(List(Post), String)))
+  GetUser(UserPrincipal, process.Subject(Result(models.User, String)))
+  GetInbox(UserPrincipal, process.Subject(Result(List(models.Message), String)))
   SaveSubject(process.Subject(models.MyMessage), UserPrincipal)
   SendMessage(
     String,
@@ -409,6 +410,7 @@ pub fn handle_action(
                     )
                   let updated_comments_dict =
                     dict.insert(comments_dict, comment.uuid, updated_comment)
+
                   let updated_directory =
                     Directory(..state, comments: updated_comments_dict)
                 }
@@ -422,6 +424,12 @@ pub fn handle_action(
                   let updated_directory =
                     Directory(..state, posts: updated_posts_dict)
                 }
+              }
+              let author_id = case comment {
+                Some(comment) -> {
+                  comment.author_id
+                }
+                _ -> author_id
               }
               let author =
                 dict.values(users)
@@ -490,6 +498,36 @@ pub fn handle_action(
           actor.continue(state)
         }
       }
+    }
+    GetUser(user_principal, client) -> {
+      let users = state.users
+      let user_email = user_principal.email
+      case dict.get(users, user_email) {
+        Ok(user) -> {
+          actor.send(client, Ok(user))
+        }
+        _ -> {
+          actor.send(client, Error("Invalid User."))
+        }
+      }
+      actor.continue(state)
+    }
+    GetInbox(user_principal, client) -> {
+      let users = state.users
+      let messages = dict.values(state.messages)
+      let user_email = user_principal.email
+      case dict.get(users, user_email) {
+        Ok(user) -> {
+          let id = user.id
+          let inbox =
+            list.filter(messages, fn(message) { message.recipient_id == id })
+          actor.send(client, Ok(inbox))
+        }
+        _ -> {
+          actor.send(client, Error("Invalid User."))
+        }
+      }
+      actor.continue(state)
     }
     SaveSubject(subject, user_principal) -> {
       let user_email = user_principal.email

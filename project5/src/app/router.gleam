@@ -57,7 +57,8 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   use req <- web.middleware(req)
   let user_email = request.get_header(req, "x-email")
   case wisp.path_segments(req) {
-    ["api", "user"] -> register_user(req, ctx.engine)
+    ["api", "user"] -> user(req, ctx.engine, user_email)
+    ["api", "user", "messages"] -> user_inbox(req, ctx.engine, user_email)
     ["api", "subreddit"] -> subreddit(req, ctx.engine, user_email)
     ["api", "user", "subreddit", subreddit_id] ->
       handle_user_subreddit_membership(
@@ -91,9 +92,41 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   }
 }
 
-fn register_user(req: Request, engine: process.Subject(engine.Action)) {
-  use <- wisp.require_method(req, Post)
-  controller.register_user(req, engine)
+fn user(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: Result(String, Nil),
+) {
+  case req.method {
+    Post -> controller.register_user(req, engine)
+    Get -> {
+      case user_email {
+        Ok(user_email) -> {
+          controller.get_user(req, engine, user_email)
+        }
+        _ -> {
+          wisp.response(401)
+        }
+      }
+    }
+    _ -> wisp.method_not_allowed([Post, Get])
+  }
+}
+
+fn user_inbox(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: Result(String, Nil),
+) {
+  use <- wisp.require_method(req, Get)
+  case user_email {
+    Ok(user_email) -> {
+      controller.get_user_inbox(req, engine, user_email)
+    }
+    _ -> {
+      wisp.response(401)
+    }
+  }
 }
 
 fn subreddit(

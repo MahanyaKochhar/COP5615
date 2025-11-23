@@ -4,6 +4,7 @@ import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/json
+import gleam/list
 import gleam/option
 import gleam/otp/actor
 import mist
@@ -398,6 +399,57 @@ pub fn feed(
     _ -> {
       wisp.response(403)
     }
+  }
+}
+
+pub fn get_user(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: String,
+) {
+  let user =
+    actor.call(engine, call_milliseconds, engine.GetUser(
+      models.UserPrincipal(email: user_email),
+      _,
+    ))
+  case user {
+    Ok(user) -> {
+      let response =
+        json.to_string(
+          json.object([
+            #("uuid", json.string(user.uuid)),
+            #("karma", json.int(user.karma)),
+          ]),
+        )
+      wisp.json_response(response, 200)
+    }
+    _ -> wisp.response(403)
+  }
+}
+
+fn message_to_json(message: models.Message) {
+  json.object([
+    #("uuid", json.string(message.uuid)),
+    #("body", json.string(message.body)),
+  ])
+}
+
+pub fn get_user_inbox(
+  req: Request,
+  engine: process.Subject(engine.Action),
+  user_email: String,
+) {
+  let inbox =
+    actor.call(engine, call_milliseconds, engine.GetInbox(
+      models.UserPrincipal(email: user_email),
+      _,
+    ))
+  case inbox {
+    Ok(inbox) -> {
+      let response = json.array(inbox, message_to_json) |> json.to_string
+      wisp.json_response(response, 200)
+    }
+    _ -> wisp.response(403)
   }
 }
 
