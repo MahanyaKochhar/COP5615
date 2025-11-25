@@ -58,7 +58,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
   let user_email = request.get_header(req, "x-email")
   case wisp.path_segments(req) {
     ["api", "user"] -> user(req, ctx.engine, user_email)
-    ["api", "user", "messages"] -> user_inbox(req, ctx.engine, user_email)
+    ["api", "user", "inbox"] -> user_inbox(req, ctx.engine, user_email)
     ["api", "subreddit"] -> subreddit(req, ctx.engine, user_email)
     ["api", "user", "subreddit", subreddit_id] ->
       handle_user_subreddit_membership(

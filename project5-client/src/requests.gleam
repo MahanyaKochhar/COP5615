@@ -238,3 +238,24 @@ pub fn user(email: String) {
     }
   }
 }
+
+pub fn user_inbox(email: String) {
+  let user = json.to_string(json.object([]))
+  let resp =
+    helpers.send_request(
+      "api/user/inbox",
+      http.Get,
+      list.append(headers, [#("x-email", email)]),
+      user,
+    )
+  case resp {
+    Ok(resp) -> {
+      let body = resp.body
+      logging.log(logging.Info, "Inbox of User: " <> email)
+      logging.log(logging.Info, body)
+    }
+    _ -> {
+      logging.log(logging.Error, "HTTPC Error")
+    }
+  }
+}

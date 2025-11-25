@@ -120,7 +120,10 @@ pub fn main() -> Nil {
         requests.Leave,
       )
       requests.feed(user3_email)
-      process.sleep(30_000)
+      process.sleep(40_000)
+
+      requests.user_inbox(user1_email)
+      requests.user_inbox(user3_email)
       Nil
     }
     _ -> {
