@@ -1,0 +1,434 @@
+{
+	"info": {
+		"_postman_id": "c9c2146b-4650-4cf8-afce-b5ca307ca0ce",
+		"name": "Reddit Engine",
+		"description": "### Welcome to Postman! This is your first collection. \n\nCollections are your starting point for building and testing APIs. You can use this one to:\n\n• Group related requests\n• Test your API in real-world scenarios\n• Document and share your requests\n\nUpdate the name and overview whenever you’re ready to make it yours.\n\n[Learn more about Postman Collections.](https://learning.postman.com/docs/collections/collections-overview/)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "49927720",
+		"_collection_link": "https://mahannya-kochhar-7582604.postman.co/workspace/Mahanya-Kochhar's-Workspace~5a99f546-39cb-403c-8821-5d13602cc079/collection/49927720-c9c2146b-4650-4cf8-afce-b5ca307ca0ce?action=share&source=collection_link&creator=49927720"
+	},
+	"item": [
+		{
+			"name": "Create Subreddit",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\" : \"University of Florida\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/subreddit",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"subreddit"
+					]
+				},
+				"description": "This is a GET request and it is used to \"get\" data from an endpoint. There is no request body for a GET request, but you can use query parameters to help specify the resource you want data on (e.g., in this request, we have `id=1`).\n\nA successful GET response will have a `200 OK` status, and should include some kind of response body - for example, HTML web content or JSON data."
+			},
+			"response": []
+		},
+		{
+			"name": "Register User",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Successful POST request\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+							"});",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\" : \"mahannya.kochhar@gmail.com\",\n    \"password\" : \"mk\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/user",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"user"
+					]
+				},
+				"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+			},
+			"response": []
+		},
+		{
+			"name": "Join Subreddit",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "jatin.salve@gmail.com",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/user/bfc61e02-edc9-4911-8268-d62dbfefcc22/subreddit/c763dd1c-1d39-466c-a926-26e297922ce5",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"user",
+						"bfc61e02-edc9-4911-8268-d62dbfefcc22",
+						"subreddit",
+						"c763dd1c-1d39-466c-a926-26e297922ce5"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Leave Subreddit",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "jatin.salve@gmail.com",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/user/subreddit/c763dd1c-1d39-466c-a926-26e297922ce5",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"user",
+						"subreddit",
+						"c763dd1c-1d39-466c-a926-26e297922ce5"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Post",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"body\" : \"Distributed Operating System Principles\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/subreddit/c763dd1c-1d39-466c-a926-26e297922ce5/post",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"subreddit",
+						"c763dd1c-1d39-466c-a926-26e297922ce5",
+						"post"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Comment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"body\" : \"Use Gleam, REST APIs and Actor Model only. If possible, use Websockets.\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/post/a0beb130-4a4a-4b18-852d-f30b1e90bfd8/comment",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"post",
+						"a0beb130-4a4a-4b18-852d-f30b1e90bfd8",
+						"comment"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Comment of Comment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"body\" : \"Use Gleam, REST APIs and Actor Model only. If possible, use Websockets.\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/post/a0beb130-4a4a-4b18-852d-f30b1e90bfd8/comment/e63b1dae-901b-4353-adf0-41940d8fa3e8",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"post",
+						"a0beb130-4a4a-4b18-852d-f30b1e90bfd8",
+						"comment",
+						"e63b1dae-901b-4353-adf0-41940d8fa3e8"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Feed",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "jatin.salve@gmail.com",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/user/feed",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"user",
+						"feed"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Vote on Post",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"up\" : 0,\n    \"down\" : 2\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/post/a0beb130-4a4a-4b18-852d-f30b1e90bfd8/vote",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"post",
+						"a0beb130-4a4a-4b18-852d-f30b1e90bfd8",
+						"vote"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Vote on Comment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"up\" : 0,\n    \"down\" : 1\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/api/post/a0beb130-4a4a-4b18-852d-f30b1e90bfd8/comment/04ea6dca-a78a-4fba-bfae-121c438755d2/vote",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"post",
+						"a0beb130-4a4a-4b18-852d-f30b1e90bfd8",
+						"comment",
+						"04ea6dca-a78a-4fba-bfae-121c438755d2",
+						"vote"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Inbox",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "kochharm@ufl.edu",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/user/inbox",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"user",
+						"inbox"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Not found",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-email",
+						"value": "mahannya.kochhar@gmail.com",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:8000/api/call",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"call"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
