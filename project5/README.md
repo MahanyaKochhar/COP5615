@@ -35,6 +35,23 @@ The client implementation calls the respective implemented API endpoints to:
 9. Retrieve user feed
 10. View inbox messages
 
+# Authentication Behavior
+
+In our demo client implementation, we registered users and only the authenticated users can make subsequent authenticated API calls.
+
+## Authenticated Users
+- Can access protected API endpoints.
+- Must provide valid credentials.
+
+## 401 Unauthorized
+- No credentials provided.
+- Invalid or expired credentials.
+
+## 403 Forbidden
+- Credentials are valid.
+- User is authenticated but lacks permissions.
+
+
 ## REST APIs
 As part of this project , we have designed a RESTful API interface for the Reddit Engine implemented in Part 1.
 
@@ -47,13 +64,32 @@ Specifically, we have implemented Create (POST method) for registering users, cr
 
 The API paths leverage a strong hierarchical structure and are anchored by UUIDs (Universally Unique Identifiers) for all resources. This design ensures that every resource is globally unique and reflects accurate ownership relationships; specifically, posts belong to a subreddit, comments belong to a post, and the routing is flexible enough to manage both top-level and nested comments for threaded discussions.
 
-The API is served by the Mist web server, accessible on localhost via Port 8000. All incoming REST requests are processed by the Wisp framework, which is also utilized to implement the system's logging strategy, ensuring every request is properly recorded using Wisp's built-in logging utilities. We have further added logging for the responses received in the client to view in the terminal.
+The API is served by the Mist web server, accessible on localhost via Port 8000. All incoming REST requests are processed by the Wisp framework, which is also utilized to implement the system's logging strategy, ensuring every request is properly recorded using Wisp's built-in logging utilities. We have further added logging for the responses received in the client to view the JSON responses for the subsequent requests in the terminal and validate the requests.
 
 API specification:
 The API strictly adheres to a JSON-only data format for both request and response bodies. For authenticated endpoints, security is enforced by requiring a client-provided x-email header; otherwise, the request is rejected as unauthorized. Standard HTTP Status Codes are used for clear communication: 201 for successful resource creation, 200 for successful read/modification responses, and various 400-level codes (e.g., 400 Bad Request) to signal client errors such as invalid input or malformed JSON payloads.
 
-## API Endpoints
+## Run the code
+1. Unzip the folder
+2. Run the Server and Client in separate terminal sessions.
 
+### Run the Server
+
+```
+cd project5
+gleam dev
+```
+
+### Run the Client
+
+```
+cd project5-client
+gleam run
+```
+
+## API Endpoints (Subsequent Postman Collection has been shared in submission)
+
+## Base URL : [http://0.0.0.0:8000](http://0.0.0.0:8000)
 ### 1. Create Subreddit
 - **Method:** POST
 - **Endpoint:** `/api/subreddit`
@@ -132,7 +168,7 @@ The API strictly adheres to a JSON-only data format for both request and respons
 ```json
 {
   "up": 0,
-  "down": 2
+  "down": 1
 }
 ```
 
@@ -158,20 +194,6 @@ The API strictly adheres to a JSON-only data format for both request and respons
 - **Endpoint:** `/api/call`
 - **Headers:** `x-email: <user email>`
 
-
-## Run the Server
-
-```
-cd project5
-gleam dev
-```
-
-## Run the Client
-
-```
-cd project5-client
-gleam run
-```
 
 
 ## Web Socket Implementation
