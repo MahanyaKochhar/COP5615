@@ -1,132 +1,207 @@
-# Reddit Engine & Client Simulator
+# Reddit Engine API Interface
 
 **Project Group:** 24  
-**Team Members:** Mahanya Kochhar, Akshay Dhawale
+**Team Members:** Akshay Dhawale, Mahanya Kochhar
 
-## Overview
+**Demo Video URL:** [Youtube URL](https://youtu.be/qG3naaFvQ2s)
 
-This project implements a distributed Reddit-like social platform using the actor model in Gleam, demonstrating key principles of concurrent, fault-tolerant system design. The platform provides essential Reddit functionalities with realistic user behavior simulation at scale.
+## Server Overview
 
-## Features
+This project implements the REST API Interface for the Reddit Engine designed in Project 4 Part 1. Along with that, it implements a REST API Client that uses the REST API endpoints and makes requests to the server endpoints.
 
-### Core Functionality
-- **User Registration & Authentication**
-- **Subreddit Management**
-  - Creation and membership management
-  - Automatic enrollment in default subreddit (like Reddit's main feed)
-- **Content Management**
-  - Post creation and retrieval
-  - Hierarchical comment threading
-  - Structured thread retrieval in user feeds
-- **Voting System**
-  - Upvote/downvote functionality for posts and comments
-  - Karma computation: +1 per upvote, -1 per downvote
-- **Direct Messaging**
-  - User-to-user messaging with mailbox system
-  - Probabilistic reply mechanism
+We have used Mist and Wisp packages of the Gleam programming language. Mist and Wisp are two core components used for building web applications in the Gleam programming language. They work together to handle HTTP requests and serve web content.
 
-### Architecture Highlights
-- **Engine Actor**: Central coordinator managing global state and processing all client events
-- **Asynchronous Client Interaction**: Non-blocking message-passing coordination
-- **Simulator**: Generates multiple client actors with configurable TTL to model active/disconnected users
-- **Root Client Actor**: Initializes default subreddit ensuring common interaction space
+**Mist** is the low-level web server itself, written entirely in Gleam. Its job is to listen on a specific port, handle the raw network connections, and deal with the basic mechanics of the HTTP protocol. It is the engine that keeps your web application running and accessible. Mist further is utilized directly to handle the necessary low-level primitives for establishing and managing all connections including persistent, bidirectional full-duplex WebSocket connections.
 
-## User Distribution Model
+**Wisp** is the web framework that sits on top of Mist. It provides a higher-level, more developer-friendly structure for managing stateless request/response web cycles fundamental to REST. Wisp handles tasks like routing, middleware, and request/response handling.
 
-The system implements a **Zipf distribution** to simulate realistic community participation patterns, where popular subreddits attract disproportionately more users.
 
-### Distribution Formula
+All the state including the message state is stored in the engine actor that drives the entire application and maintains persistence of data. This engine actor coordinates the entire application and serves as a datastore in some sense.
 
-For subreddit rank `r`:
+### Client Overview
+
+The client uses the Gleam HTTPC package. `gleam_httpc` is the primary HTTP client library for making outbound network requests in Gleam when running on the Erlang/BEAM virtual machine.
+
+The client implementation calls the respective implemented API endpoints to:
+
+1. Register users
+2. Create subreddits
+3. Join or leave subreddits
+4. Create posts
+5. Comment on posts
+6. Comment on comments (hierarchical commenting)
+7. Vote on posts or comments
+8. Retrieve user profile (karma)
+9. Retrieve user feed
+10. View inbox messages
+
+## REST APIs
+As part of this project , we have designed a RESTful API interface for the Reddit Engine implemented in Part 1.
+
+A REST API (Representational State Transfer Application Programming Interface) is an architectural style for networked applications that treats server-side data entities, known as resources, as unique objects accessible via standardized URIs. Interaction with these resources is stateless and is governed by standard HTTP methods (like GET for reading, POST for creating, PUT for full updates, and DELETE for removal) to perform the basic CRUD operations. This design principle ensures a uniform interface and decouples the client from the server.
+
+
+The project implements a RESTful API leveraging a clear, hierarchical URI structure to manage the core resources: users, subreddits, posts, and comments. Endpoints are designed to reflect resource relationships and specific actions. The routing system utilizes hierarchical URIs, clearly demonstrating resource relationships (e.g., a comment belonging to a post). Dedicated endpoints have been established to handle fundamental operations such as resource creation, membership management, viewing feeds, and modifying state via voting, ensuring clear separation of concerns and adherence to stateless interaction standards.
+
+Specifically, we have implemented Create (POST method) for registering users, creating subreddits, posting and commenting on subreddits, Read (Get Method) for retreiving user messages inbox and user feed.
+
+The API paths leverage a strong hierarchical structure and are anchored by UUIDs (Universally Unique Identifiers) for all resources. This design ensures that every resource is globally unique and reflects accurate ownership relationships; specifically, posts belong to a subreddit, comments belong to a post, and the routing is flexible enough to manage both top-level and nested comments for threaded discussions.
+
+The API is served by the Mist web server, accessible on localhost via Port 8000. All incoming REST requests are processed by the Wisp framework, which is also utilized to implement the system's logging strategy, ensuring every request is properly recorded using Wisp's built-in logging utilities. We have further added logging for the responses received in the client to view in the terminal.
+
+API specification:
+The API strictly adheres to a JSON-only data format for both request and response bodies. For authenticated endpoints, security is enforced by requiring a client-provided x-email header; otherwise, the request is rejected as unauthorized. Standard HTTP Status Codes are used for clear communication: 201 for successful resource creation, 200 for successful read/modification responses, and various 400-level codes (e.g., 400 Bad Request) to signal client errors such as invalid input or malformed JSON payloads.
+
+## API Endpoints
+
+### 1. Create Subreddit
+- **Method:** POST
+- **Endpoint:** `/api/subreddit`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "name": "University of Florida"
+}
 ```
-weight_r = 1/r
-prob_r = weight_r / total_weight
+
+### 2. Register User
+- **Method:** POST
+- **Endpoint:** `/api/user`
+- **Body:**
+```json
+{
+  "email": "mahannya.kochhar@gmail.com",
+  "password": "mk"
+}
 ```
 
-### Example Distribution (5 Subreddits)
+### 3. Join Subreddit
+- **Method:** POST
+- **Endpoint:** `/api/user/{user_id}/subreddit/{subreddit_id}`
+- **Headers:** `x-email: <user email>`
 
-| Rank | Weight | Probability |
-|------|--------|-------------|
-| 1    | 1.000  | 43.8%       |
-| 2    | 0.500  | 21.9%       |
-| 3    | 0.333  | 14.6%       |
-| 4    | 0.250  | 10.9%       |
-| 5    | 0.200  | 8.7%        |
+### 4. Leave Subreddit
+- **Method:** DELETE
+- **Endpoint:** `/api/user/subreddit/{subreddit_id}`
+- **Headers:** `x-email: <user email>`
 
-This mirrors real-world social platforms where a few communities dominate engagement.
-
-## Usage
-
-### Running the Simulator
-```bash
-gleam run <no_users> <no_subreddits>
+### 5. Create Post
+- **Method:** POST
+- **Endpoint:** `/api/subreddit/{subreddit_id}/post`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "body": "Distributed Operating System Principles"
+}
 ```
 
-**Default values** (if parameters not provided):
-- Users: 10
-- Subreddits: 5
+### 6. Create Comment (on Post)
+- **Method:** POST
+- **Endpoint:** `/api/post/{post_id}/comment`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "body": "Use Gleam, REST APIs and Actor Model only. If possible, use Websockets."
+}
+```
 
-### Example Commands
-```bash
-# Run with default settings
+### 7. Create Comment Reply (Comment of Comment)
+- **Method:** POST
+- **Endpoint:** `/api/post/{post_id}/comment/{comment_id}`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "body": "Use Gleam, REST APIs and Actor Model only. If possible, use Websockets."
+}
+```
+
+### 8. Get Feed
+- **Method:** GET
+- **Endpoint:** `/api/user/feed`
+- **Headers:** `x-email: <user email>`
+
+### 9. Vote on Post
+- **Method:** POST
+- **Endpoint:** `/api/post/{post_id}/vote`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "up": 0,
+  "down": 2
+}
+```
+
+### 10. Vote on Comment
+- **Method:** POST
+- **Endpoint:** `/api/post/{post_id}/comment/{comment_id}/vote`
+- **Headers:** `x-email: <user email>`
+- **Body:**
+```json
+{
+  "up": 0,
+  "down": 1
+}
+```
+
+### 11. Get Inbox
+- **Method:** GET
+- **Endpoint:** `/api/user/inbox`
+- **Headers:** `x-email: <user email>`
+
+### 12. Not Found (Test Endpoint)
+- **Method:** GET
+- **Endpoint:** `/api/call`
+- **Headers:** `x-email: <user email>`
+
+
+## Run the Server
+
+```
+cd project5
+gleam dev
+```
+
+## Run the Client
+
+```
+cd project5-client
 gleam run
-
-# Custom simulation
-gleam run 1000 10
-
-# Large-scale test
-gleam run 30000 30
 ```
 
-## Performance Results
 
-The system has been successfully tested with:
-- **Up to 30,000 users**
-- **30 subreddits**
-- Demonstrated efficient message handling and stability under heavy load
+## Web Socket Implementation
 
-### Sample Metrics (100 Users, 6 Subreddits)
+Additonally, we have leveraged the Mist low level server and built a WebSocket application in Gleam,where we have bypassed Wisp's routing entirely for the specific endpoint and have interacted directly with Mist's WebSocket functions to implement the messaging functionality:
+Mist specifically provides the functions to:
 
-| Subreddit UUID | Users | Posts | Comments |
-|----------------|-------|-------|----------|
-| 113eaad7-...   | 101   | 125   | 128      |
-| 1b03bebe-...   | 15    | 125   | 141      |
-| 3fefc87d-...   | 14    | 117   | 109      |
-| bd1397cd-...   | 23    | 148   | 115      |
-| d39034e7-...   | 17    | 128   | 129      |
-| db4f0615-...   | 55    | 131   | 111      |
+1. Accept the connection.
 
-### Key Observations
-- **Heavy-tailed participation**: Base subreddit attracts majority of users (101/100 including root)
-- **Consistent engagement**: Comment-to-post ratio ~1:1 across all subreddits
-- **Active smaller communities**: Smaller subreddits maintain high activity through concurrent actions
-- **Distributed activity**: Post counts range 117-148 despite varying user counts
+2. Send messages to the client.
 
-## Design Principles
+3. Receive messages from the client.
 
-This project demonstrates effective application of distributed systems concepts:
+4. Close the connection.
 
--  **Concurrency**: Actor-model enables parallel user interactions
--  **Isolation**: Independent actor state prevents interference
--  **Message-Passing Coordination**: Asynchronous communication patterns
--  **Fault Tolerance**: Resilient to user disconnections (TTL-based lifecycle)
--  **Scalability**: Tested at 30K users with stable performance
+We have exposed a REST API endpoint to (/inbox) to retrieve a user's inbox to verify the websocket and messaging functionality implementation.
 
-## Technical Stack
+The Postman WebSocket client is used to validate the real-time, stateful behavior of our chat service and we have demonstrated the same in our demo.
 
-- **Language**: Gleam
-- **Concurrency Model**: Actor-based architecture
-- **Distribution Pattern**: Zipf distribution for realistic modeling
+1. Connection Integrity
+Establishment: Postman confirms that it can successfully establish and maintain a persistent, full-duplex WebSocket connection to our Mist server.
 
-## Project Scope Achievement
+2. Message Format and Delivery
+Data Format: We send and receive messages through the Postman interface, confirming that the data transferred (the frames) adheres to the expected JSON structure you've defined for chat messages.
 
- Distributed social platform with Reddit-like functionality  
- Scalable actor-model implementation  
- Realistic user behavior simulation  
- Hierarchical content structures  
- Large-scale performance validation (30K users)  
- Configurable simulation parameters  
+Two-Way Flow: Using two separate Postman connections, we  validate end-to-end message delivery and latency. This confirms our server logic can route a message received from Connection A out to Connection B in real time.
 
-## Conclusion
 
-This Reddit clone successfully demonstrates how actor-model concurrency and distributed design principles can build scalable, resilient social platforms that mirror real-world engagement patterns. The system efficiently handles concurrent operations, maintains consistent state, and supports realistic community dynamics at scale.
+--- 
+
+The project thus successfully developed a full-stack backend service for a Reddit application, built using the Gleam language on the BEAM virtual machine.
+
+
