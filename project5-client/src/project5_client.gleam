@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/crypto
 import gleam/erlang/process
 import gleam/http
 import gleam/http/request
@@ -11,11 +13,13 @@ import io_models
 import logging
 import prng/random
 import requests
+import rsa_keys
 
 pub fn main() -> Nil {
   logging.set_level(logging.Info)
   logging.log(logging.Info, "Starting requests now.")
   let user1_email = "kochharm@ufl.edu"
+  let #(pubkey, privatekey) = rsa_keys.generate_rsa_keys()
   let user2_email = "adhawale@ufl.edu"
   let user3_email = "jatin.salve@ufl.edu"
   let users = ["kochharm@ufl.edu", "adhawale@ufl.edu", "jatin.salve@ufl.edu"]
@@ -32,9 +36,9 @@ pub fn main() -> Nil {
     "Large class strength",
   ]
 
-  requests.create_user(user1_email, "kochharm")
-  requests.create_user(user2_email, "adhawale")
-  requests.create_user(user3_email, "jsalve")
+  requests.create_user(user1_email, "kochharm", Some(pubkey))
+  requests.create_user(user2_email, "adhawale", None)
+  requests.create_user(user3_email, "jsalve", None)
 
   let assert Ok(sampled_user) = list.sample(users, 1) |> list.first
 
@@ -54,7 +58,24 @@ pub fn main() -> Nil {
       )
       let filtered_post_ids =
         list.filter_map(posts, fn(post) {
-          let post_id = requests.create_post(subreddit_id, post, user1_email)
+          let signature =
+            rsa_keys.sign_message_with_pem_string(
+              crypto.hash(crypto.Sha256, bit_array.from_string(post)),
+              privatekey.pem,
+            )
+          let final_signature = case signature {
+            Ok(signature) -> {
+              Some(bit_array.base16_encode(signature))
+            }
+            _ -> None
+          }
+          let post_id =
+            requests.create_post(
+              subreddit_id,
+              post,
+              final_signature,
+              user1_email,
+            )
           case post_id {
             Some(post_id) -> Ok(#(post_id, None))
             None -> Error(Nil)
@@ -112,14 +133,14 @@ pub fn main() -> Nil {
       requests.user(user2_email)
       requests.user(user3_email)
 
-      requests.feed(user1_email)
-      requests.feed(user2_email)
+      requests.feed(user1_email, pubkey.pem)
+      requests.feed(user2_email, pubkey.pem)
       requests.handle_subreddit_membership(
         subreddit_id,
         user3_email,
         requests.Leave,
       )
-      requests.feed(user3_email)
+      requests.feed(user3_email, pubkey.pem)
       process.sleep(500_000)
 
       requests.user_inbox(user1_email)

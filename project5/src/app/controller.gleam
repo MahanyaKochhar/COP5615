@@ -25,6 +25,7 @@ pub fn register_user(
         actor.call(engine, call_milliseconds, engine.RegisterUser(
           user.email,
           user.password,
+          user.pubkey,
           _,
         ))
       case registered_user {
@@ -200,6 +201,7 @@ pub fn create_post(
         actor.call(engine, call_milliseconds, engine.CreatePost(
           subreddit_uuid,
           post.body,
+          post.signature,
           models.UserPrincipal(email: user_email),
           _,
         ))
@@ -378,6 +380,7 @@ fn post_to_json(post: models.Post) {
     #("upvote", json.int(post.upvote)),
     #("downvote", json.int(post.downvote)),
     #("comments", json.array(comments, comment_to_json)),
+    #("verified", json.bool(post.verified)),
   ])
 }
 
@@ -386,9 +389,18 @@ pub fn feed(
   engine: process.Subject(engine.Action),
   user_email: String,
 ) -> Response {
+  use json_str <- wisp.require_json(req)
+  let pubkey = decode.run(json_str, io_models.pubkey_decoder())
+  let pubkey = case pubkey {
+    Ok(pubkey) -> {
+      pubkey.pubkey
+    }
+    _ -> option.None
+  }
   let user_feed =
     actor.call(engine, call_milliseconds, engine.GetFeed(
       models.UserPrincipal(email: user_email),
+      pubkey,
       _,
     ))
   case user_feed {
@@ -419,6 +431,7 @@ pub fn get_user(
           json.object([
             #("uuid", json.string(user.uuid)),
             #("karma", json.int(user.karma)),
+            #("pubkey", json.nullable(user.pubkey, json.string)),
           ]),
         )
       wisp.json_response(response, 200)

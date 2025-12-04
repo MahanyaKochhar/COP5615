@@ -26,6 +26,7 @@ dot_env = ">= 1.2.0 and < 2.0.0"
 gleam_http = ">= 4.3.0 and < 5.0.0"
 mist = ">= 5.0.3 and < 6.0.0"
 radiate = ">= 1.0.0 and < 2.0.0"
+rsa_keys = ">= 2.1.0 and < 3.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

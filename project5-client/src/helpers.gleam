@@ -3,6 +3,7 @@ import gleam/http/request
 import gleam/httpc
 import gleam/io
 import gleam/json
+import gleam/option
 import gleam/result
 
 const base_url = "0.0.0.0"
@@ -22,7 +23,7 @@ pub fn send_request(
     |> request.set_method(method)
   let request = request.Request(..request, headers: headers)
   let final_request = case method == http.Get {
-    True -> request
+    True -> request.set_body(request, body)
     False -> {
       request.set_body(request, body)
     }
