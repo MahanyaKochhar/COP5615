@@ -162,13 +162,13 @@ pub fn create_comment(
     Some(comment_id) -> "api/post/" <> post_id <> "/comment/" <> comment_id
     _ -> "api/post/" <> post_id <> "/comment"
   }
-  let post = json.to_string(json.object([#("body", json.string(body))]))
+  let comment = json.to_string(json.object([#("body", json.string(body)),#("signature",json.null())]))
   let resp =
     helpers.send_request(
       path,
       http.Post,
       list.append(headers, [#("x-email", email)]),
-      post,
+      comment,
     )
   let comment_uuid = case resp {
     Ok(resp) -> {
@@ -224,24 +224,19 @@ pub fn vote(
   }
 }
 
-fn escape_json(str: String) -> String {
-  str
-  |> string.replace("\\", "\\\\")
-  |> string.replace("\"", "\\\"")
-  |> string.replace("\n", "\\n")
-  |> string.replace("\r", "\\r")
-  |> string.replace("\t", "\\t")
-}
 
-pub fn feed(email: String, pubkey: String) {
+pub fn feed(email: String, pubkey_email: option.Option(String)) {
   let post =
-    json.to_string(json.object([#("pubkey", json.string(escape_json(pubkey)))]))
-  echo post
+    json.to_string(json.object([]))
+  let add_headers = case pubkey_email {
+    Some(pubkey_email) -> [#("x-email", email),#("pubkey-email",pubkey_email)]
+    _ -> [#("x-email", email)]
+  }
   let resp =
     helpers.send_request(
       "api/user/feed",
       http.Get,
-      list.append(headers, [#("x-email", email)]),
+      list.append(headers, add_headers),
       post,
     )
   case resp {

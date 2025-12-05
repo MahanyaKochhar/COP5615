@@ -56,6 +56,7 @@ pub fn send_message(
 pub fn handle_request(req: Request, ctx: Context) -> Response {
   use req <- web.middleware(req)
   let user_email = request.get_header(req, "x-email")
+  let pubkey_email = request.get_header(req, "pubkey-email")
   case wisp.path_segments(req) {
     ["api", "user"] -> user(req, ctx.engine, user_email)
     ["api", "user", "inbox"] -> user_inbox(req, ctx.engine, user_email)
@@ -86,7 +87,7 @@ pub fn handle_request(req: Request, ctx: Context) -> Response {
       vote(req, ctx.engine, post_id, Some(comment_id), user_email)
     }
     ["api", "user", "feed"] -> {
-      feed(req, ctx.engine, user_email)
+      feed(req, ctx.engine,pubkey_email, user_email)
     }
     _ -> wisp.not_found()
   }
@@ -222,12 +223,16 @@ fn vote(
 fn feed(
   req: Request,
   engine: process.Subject(engine.Action),
+  pubkey_email : Result(String,Nil),
   user_email: Result(String, Nil),
 ) {
   use <- wisp.require_method(req, Get)
   case user_email {
     Ok(user_email) -> {
-      controller.feed(req, engine, user_email)
+      case pubkey_email {
+        Ok(pubkey_email) -> controller.feed(req, engine, Some(pubkey_email), user_email)
+        _ -> controller.feed(req,engine,None,user_email)
+      }
     }
     _ -> {
       wisp.response(401)

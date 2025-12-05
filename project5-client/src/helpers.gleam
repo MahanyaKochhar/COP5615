@@ -23,7 +23,7 @@ pub fn send_request(
     |> request.set_method(method)
   let request = request.Request(..request, headers: headers)
   let final_request = case method == http.Get {
-    True -> request.set_body(request, body)
+    True -> request
     False -> {
       request.set_body(request, body)
     }

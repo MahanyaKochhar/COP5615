@@ -387,20 +387,13 @@ fn post_to_json(post: models.Post) {
 pub fn feed(
   req: Request,
   engine: process.Subject(engine.Action),
+  pubkey_email : option.Option(String),
   user_email: String,
 ) -> Response {
-  use json_str <- wisp.require_json(req)
-  let pubkey = decode.run(json_str, io_models.pubkey_decoder())
-  let pubkey = case pubkey {
-    Ok(pubkey) -> {
-      pubkey.pubkey
-    }
-    _ -> option.None
-  }
   let user_feed =
     actor.call(engine, call_milliseconds, engine.GetFeed(
       models.UserPrincipal(email: user_email),
-      pubkey,
+      pubkey_email,
       _,
     ))
   case user_feed {

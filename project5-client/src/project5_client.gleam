@@ -19,7 +19,7 @@ pub fn main() -> Nil {
   logging.set_level(logging.Info)
   logging.log(logging.Info, "Starting requests now.")
   let user1_email = "kochharm@ufl.edu"
-  let #(pubkey, privatekey) = rsa_keys.generate_rsa_keys()
+  let #(pubkey, privkey) = rsa_keys.generate_rsa_keys()
   let user2_email = "adhawale@ufl.edu"
   let user3_email = "jatin.salve@ufl.edu"
   let users = ["kochharm@ufl.edu", "adhawale@ufl.edu", "jatin.salve@ufl.edu"]
@@ -60,8 +60,8 @@ pub fn main() -> Nil {
         list.filter_map(posts, fn(post) {
           let signature =
             rsa_keys.sign_message_with_pem_string(
-              crypto.hash(crypto.Sha256, bit_array.from_string(post)),
-              privatekey.pem,
+              bit_array.from_string(post),
+              privkey.pem,
             )
           let final_signature = case signature {
             Ok(signature) -> {
@@ -128,19 +128,17 @@ pub fn main() -> Nil {
         let down = 1 - up
         requests.vote(post_comment.0, post_comment.1, up, down, sampled_user)
       })
-
       requests.user(user1_email)
       requests.user(user2_email)
       requests.user(user3_email)
-
-      requests.feed(user1_email, pubkey.pem)
-      requests.feed(user2_email, pubkey.pem)
+      requests.feed(user1_email, Some(user1_email))
+      requests.feed(user2_email,Some(user1_email))
       requests.handle_subreddit_membership(
         subreddit_id,
         user3_email,
         requests.Leave,
       )
-      requests.feed(user3_email, pubkey.pem)
+      requests.feed(user3_email, None)
       process.sleep(500_000)
 
       requests.user_inbox(user1_email)

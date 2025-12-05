@@ -29,9 +29,6 @@ pub type Message {
   Message(recipient: String, body: String)
 }
 
-pub type Pubkey {
-  Pubkey(pubkey: option.Option(String))
-}
 
 pub fn user_decoder() -> decode.Decoder(User) {
   use email <- decode.field("email", decode.string)
@@ -63,7 +60,3 @@ pub fn message_decoder() -> decode.Decoder(Message) {
   decode.success(Message(recipient:, body:))
 }
 
-pub fn pubkey_decoder() -> decode.Decoder(Pubkey) {
-  use pubkey <- decode.field("pubkey", decode.optional(decode.string))
-  decode.success(Pubkey(pubkey:))
-}
