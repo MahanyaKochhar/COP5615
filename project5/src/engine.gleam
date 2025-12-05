@@ -14,43 +14,17 @@ import models.{
   Directory, Message, MessageEntity, Metrics, Post, PostEntity, SubReddit,
   SubRedditEntity, SubRedditMetrics, User, UserEntity,
 }
+import rsa_keys
 import youid/uuid
 
-// pub type Request {
-//   RegisterClient(String, String, process.Subject(Result(String, String)))
-//   CreateSubRedditClient(String, process.Subject(Result(String, String)))
-//   JoinSubRedditClient(String, process.Subject(Result(String, String)))
-//   LeaveSubRedditClient(String, process.Subject(Result(String, String)))
-//   CreatePostClient(String, String, process.Subject(Result(String, String)))
-//   CreateCommentClient(
-//     String,
-//     Option(String),
-//     String,
-//     process.Subject(Result(String, String)),
-//   )
-//   VoteClient(
-//     String,
-//     Option(String),
-//     Int,
-//     Int,
-//     process.Subject(Result(String, String)),
-//   )
-//   GetFeedClient(process.Subject(Result(List(models.Post), String)))
-//   ReceiveMessageClient(
-//     process.Subject(Request),
-//     process.Subject(Request),
-//     String,
-//     String,
-//   )
-//   GetAvailableSubredditsClient(process.Subject(List(String)))
-//   GetAvailablePostsandCommentsClient(
-//     process.Subject(List(#(String, List(String)))),
-//   )
-//   GetTTLInfoClient(process.Subject(Float))
-// }
 
 pub type Action {
-  RegisterUser(String, String, process.Subject(Result(String, String)))
+  RegisterUser(
+    String,
+    String,
+    Option(String),
+    process.Subject(Result(String, String)),
+  )
   CreateSubReddit(
     String,
     UserPrincipal,
@@ -61,6 +35,7 @@ pub type Action {
   CreatePost(
     String,
     String,
+    Option(String),
     UserPrincipal,
     process.Subject(Result(String, String)),
   )
@@ -79,7 +54,11 @@ pub type Action {
     UserPrincipal,
     process.Subject(Result(String, String)),
   )
-  GetFeed(UserPrincipal, process.Subject(Result(List(Post), String)))
+  GetFeed(
+    UserPrincipal,
+    Option(String),
+    process.Subject(Result(List(Post), String)),
+  )
   GetUser(UserPrincipal, process.Subject(Result(models.User, String)))
   GetInbox(UserPrincipal, process.Subject(Result(List(models.Message), String)))
   SaveSubject(process.Subject(models.MyMessage), UserPrincipal)
@@ -100,7 +79,7 @@ pub fn handle_action(
   action: Action,
 ) -> actor.Next(Directory, Action) {
   case action {
-    RegisterUser(email, password, client) -> {
+    RegisterUser(email, password, pubkey, client) -> {
       let entity_dict = state.entities
       let user_dict = state.users
       let is_already_registered = dict.has_key(user_dict, email)
@@ -123,6 +102,7 @@ pub fn handle_action(
                 crypto.Sha256,
                 bit_array.from_string(password),
               ),
+              pubkey: pubkey,
               karma: 0,
               websocket_subject: None,
             )
@@ -263,7 +243,7 @@ pub fn handle_action(
         }
       }
     }
-    CreatePost(subreddit_uuid, body, user_principal, client) -> {
+    CreatePost(subreddit_uuid, body, signature, user_principal, client) -> {
       let user_email = user_principal.email
       let entity_dict = state.entities
       case dict.get(state.users, user_email) {
@@ -286,6 +266,8 @@ pub fn handle_action(
                   subreddit_id: subreddit_id,
                   author_id: user_id,
                   body: body,
+                  signature: signature,
+                  verified: False,
                   upvote: 0,
                   downvote: 0,
                   comments: None,
@@ -456,7 +438,7 @@ pub fn handle_action(
         }
       }
     }
-    GetFeed(user_principal, client) -> {
+    GetFeed(user_principal, pubkey_email, client) -> {
       let user_email = user_principal.email
       let users = state.users
       case dict.get(users, user_email) {
@@ -488,7 +470,41 @@ pub fn handle_action(
                   comment.post_id == post.id
                 })
               let comment_tree = helpers.build_comment_tree(post_comments)
-              Post(..post, comments: Some(comment_tree))
+              let pubkey = case pubkey_email {
+                Some(pubkey_email) -> {
+                  case dict.get(users,pubkey_email) {
+                    Ok(user) -> user.pubkey
+                    _ -> None
+                  }
+                }
+                _ -> None
+              }
+              let verified = case pubkey {
+                Some(pubkey) -> {
+                  case post.signature {
+                    Some(signature) -> {
+                      case bit_array.base16_decode(signature) {
+                        Ok(decoded) -> {
+                          let result =
+                            rsa_keys.verify_message_with_pem_string(
+                              bit_array.from_string(post.body),
+                              pubkey,
+                              decoded,
+                            )
+                          case result {
+                            Ok(result) -> result
+                            _ -> False
+                          }
+                        }
+                        _ -> False
+                      }
+                    }
+                    _ -> False
+                  }
+                }
+                _ -> False
+              }
+              Post(..post, verified: verified, comments: Some(comment_tree))
             })
           actor.send(client, Ok(user_dto_posts))
           actor.continue(state)

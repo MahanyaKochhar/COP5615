@@ -2,18 +2,33 @@ import gleam/http
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import helpers
 import io_models
 import logging
+import rsa_keys
 
 const headers = [#("content-type", "application/json")]
 
-pub fn create_user(email: String, password: String) {
+pub fn create_user(
+  email: String,
+  password: String,
+  pubkey: option.Option(rsa_keys.PublicKey),
+) {
+  let pubkey_json = case pubkey {
+    Some(pubkey) -> {
+      json.string(pubkey.pem)
+    }
+    _ -> {
+      json.null()
+    }
+  }
   let user =
     json.to_string(
       json.object([
         #("email", json.string(email)),
         #("password", json.string(password)),
+        #("pubkey", pubkey_json),
       ]),
     )
   let resp = helpers.send_request("api/user", http.Post, headers, user)
@@ -97,8 +112,20 @@ pub fn handle_subreddit_membership(
   }
 }
 
-pub fn create_post(subreddit_id: String, body: String, email: String) {
-  let post = json.to_string(json.object([#("body", json.string(body))]))
+pub fn create_post(
+  subreddit_id: String,
+  body: String,
+  signature: option.Option(String),
+  email: String,
+) {
+  let signature = case signature {
+    Some(signature) -> json.string(signature)
+    _ -> json.null()
+  }
+  let post =
+    json.to_string(
+      json.object([#("body", json.string(body)), #("signature", signature)]),
+    )
   let resp =
     helpers.send_request(
       "api/subreddit/" <> subreddit_id <> "/post",
@@ -135,13 +162,13 @@ pub fn create_comment(
     Some(comment_id) -> "api/post/" <> post_id <> "/comment/" <> comment_id
     _ -> "api/post/" <> post_id <> "/comment"
   }
-  let post = json.to_string(json.object([#("body", json.string(body))]))
+  let comment = json.to_string(json.object([#("body", json.string(body)),#("signature",json.null())]))
   let resp =
     helpers.send_request(
       path,
       http.Post,
       list.append(headers, [#("x-email", email)]),
-      post,
+      comment,
     )
   let comment_uuid = case resp {
     Ok(resp) -> {
@@ -197,13 +224,19 @@ pub fn vote(
   }
 }
 
-pub fn feed(email: String) {
-  let post = json.to_string(json.object([]))
+
+pub fn feed(email: String, pubkey_email: option.Option(String)) {
+  let post =
+    json.to_string(json.object([]))
+  let add_headers = case pubkey_email {
+    Some(pubkey_email) -> [#("x-email", email),#("pubkey-email",pubkey_email)]
+    _ -> [#("x-email", email)]
+  }
   let resp =
     helpers.send_request(
       "api/user/feed",
       http.Get,
-      list.append(headers, [#("x-email", email)]),
+      list.append(headers, add_headers),
       post,
     )
   case resp {

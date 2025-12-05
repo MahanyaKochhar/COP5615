@@ -3,6 +3,7 @@ import gleam/http/request
 import gleam/httpc
 import gleam/io
 import gleam/json
+import gleam/option
 import gleam/result
 
 const base_url = "0.0.0.0"

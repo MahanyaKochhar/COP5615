@@ -18,6 +18,7 @@ pub type User {
     email: String,
     password: BitArray,
     karma: Int,
+    pubkey: Option(String),
     websocket_subject: Option(process.Subject(MyMessage)),
   )
 }
@@ -39,6 +40,8 @@ pub type Post {
     subreddit_id: Int,
     author_id: Int,
     body: String,
+    signature: Option(String),
+    verified: Bool,
     upvote: Int,
     downvote: Int,
     comments: Option(List(CommentWithChildren)),

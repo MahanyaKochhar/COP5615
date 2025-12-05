@@ -1,7 +1,8 @@
 import gleam/dynamic/decode
+import gleam/option
 
 pub type User {
-  User(email: String, password: String)
+  User(email: String, password: String, pubkey: option.Option(String))
 }
 
 pub type Subreddit {
@@ -17,7 +18,7 @@ pub type EntityResponse {
 }
 
 pub type Body {
-  Body(body: String)
+  Body(body: String, signature: option.Option(String))
 }
 
 pub type Vote {
@@ -28,10 +29,12 @@ pub type Message {
   Message(recipient: String, body: String)
 }
 
+
 pub fn user_decoder() -> decode.Decoder(User) {
   use email <- decode.field("email", decode.string)
   use password <- decode.field("password", decode.string)
-  decode.success(User(email:, password:))
+  use pubkey <- decode.field("pubkey", decode.optional(decode.string))
+  decode.success(User(email:, password:, pubkey:))
 }
 
 pub fn subreddit_decoder() -> decode.Decoder(Subreddit) {
@@ -41,7 +44,8 @@ pub fn subreddit_decoder() -> decode.Decoder(Subreddit) {
 
 pub fn body_decoder() -> decode.Decoder(Body) {
   use body <- decode.field("body", decode.string)
-  decode.success(Body(body:))
+  use signature <- decode.field("signature", decode.optional(decode.string))
+  decode.success(Body(body:, signature:))
 }
 
 pub fn vote_decoder() -> decode.Decoder(Vote) {
@@ -55,3 +59,4 @@ pub fn message_decoder() -> decode.Decoder(Message) {
   use body <- decode.field("body", decode.string)
   decode.success(Message(recipient:, body:))
 }
+
